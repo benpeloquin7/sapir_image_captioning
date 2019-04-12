@@ -1,1 +1,12 @@
+
+# General
 .idea/
+notes.md
+sapir_image_captions/__pycache__/
+sapir_image_captions/multi_30k/__pycache__/
+
+# Meta
+.data_login
+
+# notebooks
+notebooks/
