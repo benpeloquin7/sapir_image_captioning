@@ -16,8 +16,6 @@ from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms
 
-from sapir_image_captions.multi_30k import LANGUAGE_TAGS
-
 
 class CaptionDatasetException(Exception):
     pass
@@ -111,5 +109,5 @@ class CaptionTask2Dataset(Dataset):
 
 if __name__ == '__main__':
     d = CaptionTask2Dataset('/Users/benpeloquin/Data/general/multi30k/',
-                            'train')
+                            'train', caption_ext='de')
     data = d.__getitem__(0)
