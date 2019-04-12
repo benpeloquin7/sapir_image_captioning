@@ -30,29 +30,56 @@ class CaptionTask2Dataset(Dataset):
 
     """
 
-    def __init__(self, data_dir, split, version='2016',
-                 image_transform=transforms.ToTensor, text_transform=None):
+    def __init__(self, data_dir, split, year='2016', caption_ext='en',
+                 version=1, image_transform=transforms.ToTensor,
+                 text_transform=None):
         super(CaptionTask2Dataset, self).__init__()
         self.data_dir = data_dir
         self.images_store = os.path.join(self.data_dir, "flickr30k-images")
-        indices_path = os.path.join(self.data_dir, "data/task2/image_splits")
+        image_indices_path = os.path.join(self.data_dir,
+                                          "data/task2/image_splits")
+        captions_path = os.path.join(self.data_dir, "data/task2/tok")
+
+        if caption_ext not in ['en', 'de']:
+            raise CaptionDatasetException("{} is not a valid language "
+                                          "tag.".format(caption_ext))
+
+        if version not in list(range(1, 6)):
+            raise CaptionDatasetException("{} is not a valid language "
+                                          "version.".format(version))
+
         if split == 'test':
             image_indices_path = \
-                os.path.join(indices_path,
-                             "{}_{}_images.txt".format(split, version))
+                os.path.join(image_indices_path,
+                             "{}_{}_images.txt".format(split, year))
+            captions_path = \
+                os.path.join(captions_path,
+                             "{}_{}.lc.norm.tok.{}.{}".format(
+                                 split, year, version, caption_ext))
         elif split in ['train', 'val']:
             image_indices_path = \
-                os.path.join(indices_path,
+                os.path.join(image_indices_path,
                              "{}_images.txt".format(split))
+            captions_path = \
+                os.path.join(captions_path,
+                             "{}.lc.norm.tok.{}.{}".format(
+                                 split, version, caption_ext))
         else:
             raise CaptionDatasetException("{} is not a valid "
                                           "split.".format(split))
-        # Image files from split.
+
+        # Images
         self.image_indices = \
             pd.read_csv(image_indices_path, sep=" ", header=None) \
                 .values \
                 .squeeze() \
                 .tolist()
+
+        # Captions
+        self.captions = pd.read_csv(captions_path, sep="\n", header=None) \
+            .values \
+            .squeeze() \
+            .tolist()
 
         # Set transforms
         if image_transform is not None:
@@ -71,21 +98,18 @@ class CaptionTask2Dataset(Dataset):
         img = Image.open(image_fp)
         img = self.image_transform(img)
 
-        # Text
-        text = None
+        caption = self.text_transform(self.captions[item])
 
         return {
             'image': img,
-            'text': text
+            'text': caption
         }
 
     def __len__(self):
-        pass
+        return len(self.captions)
 
 
 if __name__ == '__main__':
     d = CaptionTask2Dataset('/Users/benpeloquin/Data/general/multi30k/',
-                            'val')
+                            'train')
     data = d.__getitem__(0)
-    import pdb; pdb.set_trace();
-
