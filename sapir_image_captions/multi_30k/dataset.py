@@ -22,12 +22,13 @@ class CaptionDatasetException(Exception):
 
 
 class CaptionTask2Dataset(Dataset):
-    """Bespoke data loader *only* for task2 data.
+    """Bespoke data loader *only* for task2 captions and images.
 
-    This should be generalized.
+    Task2 includes independent descriptions.
+
+    You may consider generalizing this.
 
     """
-
     def __init__(self, data_dir, split, year='2016', caption_ext='en',
                  version=1, image_transform=transforms.ToTensor,
                  text_transform=None):
