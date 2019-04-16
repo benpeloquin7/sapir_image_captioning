@@ -78,18 +78,18 @@ class Attention(nn.Module):
     """
 
     def __init__(self, encoder_dim, decoder_dim, attention_dim):
-        super(Attention, self).__init__(self)
+        super(Attention, self).__init__()
         self.encoder_dim = encoder_dim
         self.decoder_dim = decoder_dim
         self.attention_dim = attention_dim
         # Linear layer transform encoded image
         self.encoder_att = nn.Linear(self.encoder_dim, self.attention_dim)
         # Linear layer transform decoded caption
-        self.decoder_att = nn.Linear(self.decpder_dim, self.attention_dim)
+        self.decoder_att = nn.Linear(self.decoder_dim, self.attention_dim)
         # Calculate attention weights (will take softmax over these scores)
         self.full_att = nn.Linear(self.attention_dim, 1)
-        self.relu = nn.Relu()
-        self.softamx = nn.Softmax(dim=1)
+        self.relu = nn.ReLU()
+        self.softmax = nn.Softmax(dim=1)
 
     def forward(self, encoder_out, decoder_hidden):
         """TODO (BP) step through this..."""
@@ -134,13 +134,13 @@ class CaptionDecoder(nn.Module):
         self.attention = \
             Attention(self.encoder_dim, self.decoder_dim, self.attention_dim)
 
-        self.embedding = nn.Embedding(self.vocab_size, embedding_dim)
+        self.embedding = nn.Embedding(self.vocab_size, self.embedding_dim)
         self.dropout = nn.Dropout(p=self.dropout_rate)
         self.decode_step = nn.LSTMCell(self.embedding_dim + self.encoder_dim,
                                        self.decoder_dim)
         self.init_h = nn.Linear(self.encoder_dim, self.decoder_dim)  # Linear layer to find initial hidden state of LSTMCell
         self.init_c = nn.Linear(self.encoder_dim, self.decoder_dim)  # Linear layer to find initial cell state of LSTMCell
-        self.f_beta = nn.Linear(self.encoder_dim, self.decoder_dim)  # Linear layer to create a sigmoid activate gate
+        self.f_beta = nn.Linear(self.decoder_dim, self.encoder_dim)  # Linear layer to create a sigmoid activate gate
         self.sigmoid = nn.Sigmoid()
         self.fc = nn.Linear(self.decoder_dim, self.vocab_size)       # Linear layer to find scores over vocab
         self.init_weights()
@@ -207,7 +207,7 @@ class CaptionDecoder(nn.Module):
         encoder_out = encoder_out.view(batch_size, -1, encoder_dim)
         num_pixels = encoder_out.size(1)
         captions_lengths, sort_idxs = \
-            caption_lengths.squeeze(1).sort(dim=0, descending=True)
+            caption_lengths.sort(dim=0, descending=True)
         encoder_out = encoder_out[sort_idxs]
         encoded_captions = encoded_captions[sort_idxs]
 
@@ -229,6 +229,8 @@ class CaptionDecoder(nn.Module):
             torch.zeros(batch_size, max(decode_lengths), num_pixels) \
                 .to(self.device)
 
+        import pdb;
+        pdb.set_trace();
         # At each time step decode by attention-weighting the encoder's
         # output based on teh decoder's previous hidden state output
         # then generate a new word in the decoder with the previous word
