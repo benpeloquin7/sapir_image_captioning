@@ -14,6 +14,7 @@ import tqdm
 
 import torch
 from sapir_image_captions.multi_30k.dataset import CaptionTask2Dataset
+from sapir_image_captions.utils import text2tensor, tensor2text
 
 logging.getLogger().setLevel(logging.INFO)
 
@@ -68,12 +69,19 @@ if __name__ == '__main__':
         # Train
         pbar = tqdm.tqdm(total=len(train_loader))
         for batch_idx, batch in enumerate(train_loader):
-            import pdb;
-
-            pdb.set_trace();
+            import pdb; pdb.set_trace();
             pbar.update()
         pbar.close()
 
-            # Val
+        # Val
+        pbar = tqdm.tqdm(total=len(val_loader))
+        for batch_idx, batch in enumerate(val_loader):
+            pbar.update()
+        pbar.close()
 
-            # Test
+        # Test
+        # Val
+        pbar = tqdm.tqdm(total=len(test_loader))
+        for batch_idx, batch in enumerate(test_loader):
+            pbar.update()
+        pbar.close()
