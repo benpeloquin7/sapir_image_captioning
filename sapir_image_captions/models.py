@@ -93,10 +93,10 @@ class Attention(nn.Module):
 
     def forward(self, encoder_out, decoder_hidden):
         """TODO (BP) step through this..."""
-        encoder_out = self.encoder_att(encoder_out)     # (batch_size, attention_dim)
-        decoder_out = self.decoder_att(decoder_hidden)  # (batch_size, attention_dim)
-        combined_out = self.relu(encoder_out + decoder_out.unsqueeze(1))
-        attention_out = self.full_att(combined_out).squeeze(2)
+        att_1  = self.encoder_att(encoder_out)     # (batch_size, num_pixels, attention_dim)
+        att_2 = self.decoder_att(decoder_hidden)  # (batch_size, attention_dim)
+        att = self.relu(att_1 + att_2.unsqueeze(1))
+        attention_out = self.full_att(att).squeeze(2)
         alpha = self.softmax(attention_out)
         attention_weight_encoding = (encoder_out * alpha.unsqueeze(2)).sum(dim=1)  # (batch_size, encoder_dim)
         return attention_weight_encoding, alpha
@@ -229,8 +229,6 @@ class CaptionDecoder(nn.Module):
             torch.zeros(batch_size, max(decode_lengths), num_pixels) \
                 .to(self.device)
 
-        import pdb;
-        pdb.set_trace();
         # At each time step decode by attention-weighting the encoder's
         # output based on teh decoder's previous hidden state output
         # then generate a new word in the decoder with the previous word
