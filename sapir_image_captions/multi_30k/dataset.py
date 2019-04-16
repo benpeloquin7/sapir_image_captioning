@@ -89,9 +89,9 @@ class CaptionTask2Dataset(Dataset):
                 .squeeze() \
                 .tolist()
         self.image_transform = transforms.Compose([
-            # Note (BP): resizing (250, 250) here was picked
+            # Note (BP): resizing (256, 256) here was picked
             # somewhat arbitrarily
-            transforms.Resize((250, 250)),
+            transforms.Resize((256, 256)),
             transforms.ToTensor()
         ])
 

@@ -43,6 +43,10 @@ def tensor2text(data, vocab):
     vocab: torchtext.data.Vocab object
         Vocab contains itos and stoi.
 
+    Returns
+    list[list[str]]
+        List of tokenized captions.
+
     """
     res = []
     for row in torch.split(data, 1, dim=0):
