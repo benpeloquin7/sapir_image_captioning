@@ -83,7 +83,9 @@ if __name__ == '__main__':
                              "[Default: 1]")
     args = parser.parse_args()
 
-    device = 'cuda' if args.cuda else 'cpu'
+    device = torch.device('cuda' \
+                              if args.cuda and torch.cuda.is_available() \
+                              else 'cpu')
 
     # Data
     train_dataset = \
@@ -121,9 +123,8 @@ if __name__ == '__main__':
     decoder = CaptionDecoder(args.attention_dim, args.embedding_dim,
                              args.decoder_dim, len(train_vocab),
                              dropout_rate=args.dropout_rate)
-    if args.cuda:
-        encoder = encoder.cuda()
-        decoder = decoder.cuda()
+    encoder = encoder.to(device)
+    decoder = decoder.to(device)
 
     # Optimizers
     encoder_optimizer = torch.optim.Adam(
@@ -153,9 +154,8 @@ if __name__ == '__main__':
             X_captions = batch['text']
             caption_lengths = batch['text_len']
             batch_size = X_images.size(0)
-            if args.cuda:
-                X_images = X_images.cuda()
-                X_captions = X_captions.cuda()
+            X_images = X_images.to(device)
+            X_captions = X_captions.to(device)
 
             encoded_imgs = encoder(X_images)
             scores, captions_sorted, decode_lens, alphas, sort_idxs = \
