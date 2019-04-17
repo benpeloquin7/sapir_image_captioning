@@ -1,11 +1,10 @@
 """run.py
 
 Assume dir structure for Multi30k data
-
-# Captions
-multi30k/data
-# Images
-multi30k/flickr30k-images
+    Captions source:
+        multi30k/data
+    Images source:
+        multi30k/flickr30k-images
 
 """
 
@@ -18,7 +17,7 @@ from torch.nn.utils.rnn import pack_padded_sequence
 
 from sapir_image_captions.models import CaptionDecoder, ImageEncoder
 from sapir_image_captions.multi_30k.dataset import CaptionTask2Dataset
-from sapir_image_captions.utils import text2tensor, tensor2text
+from sapir_image_captions.utils import AverageMeter, clip_gradient
 
 logging.getLogger().setLevel(logging.INFO)
 
@@ -31,12 +30,27 @@ if __name__ == '__main__':
                              "captions. Assumes directory structure"
                              "specified in run.py comments.")
     # Run params
-    parser.add_argument("--n-epochs", type=int, default=30,
-                        help="Number of epochs [Default: 30]")
-    parser.add_argument("--batch-size", type=int, default=64,
-                        help="Batch size [Default: 64]")
+    parser.add_argument("--n-epochs", type=int, default=120,
+                        help="Number of epochs [Default: 120]")
+    parser.add_argument("--batch-size", type=int, default=32,
+                        help="Batch size [Default: 32]")
     parser.add_argument("--cuda", action='store_true', default=False,
                         help="Use cuda [Default: False].")
+    parser.add_argument("--debug", action='store_true', default=False,
+                        help="Run model weith debug params [Default: False].")
+    parser.add_argument("--fine-tune-encoder", action='store_true',
+                        default=False, help="Update encoder weights "
+                                            "[Default: False].")
+    parser.add_argument("--encoder-lr", type=float, default=1e-4,
+                        help="Encoder learning rate [Default: 1e-4].")
+    parser.add_argument("--decoder-lr", type=float, default=4e-4,
+                        help="Encoder learning rate [Default: 1e-4].")
+    parser.add_argument("--grad-clip", type=float, default=5.,
+                        help="Clip decoder gradients [Default: 5.]")
+    parser.add_argument("--alpha-c", type=float, default=5.,
+                        help="Regularization parameter for "
+                             "'doubly stochastic attention' [Default: 1.]")
+
     # Model params
     parser.add_argument("--encoded-img-size", type=int, default=14,
                         help="Encoded image size [Default: 14].")
@@ -49,6 +63,8 @@ if __name__ == '__main__':
     parser.add_argument("--dropout-rate", type=float, default=0.5,
                         help="Dropout rate [Default: 0.5].")
     # Data params
+    parser.add_argument("--max-seq-len", type=int, default=50,
+                        help="Maximum caption sequence [Default: 50].")
     parser.add_argument("--year", type=int, default=2016,
                         help="Data year. This is particular to test datasets."
                              "[Default: 2016].")
@@ -60,22 +76,22 @@ if __name__ == '__main__':
                              "[Default: 1]")
     args = parser.parse_args()
 
-
     device = 'cuda' if args.cuda else 'cpu'
 
     # Data
     train_dataset = \
         CaptionTask2Dataset(args.data_dir, "train", year=args.year,
-                            caption_ext=args.language, version=args.version)
+                            caption_ext=args.language, version=args.version,
+                            max_seq_len=args.max_seq_len)
     train_vocab = train_dataset.vocab  # Use train vocab
     val_dataset = \
         CaptionTask2Dataset(args.data_dir, "val", year=args.year,
                             caption_ext=args.language, version=args.version,
-                            vocab=train_vocab)
+                            vocab=train_vocab, max_seq_len=args.max_seq_len)
     test_dataset = \
         CaptionTask2Dataset(args.data_dir, "test", year=args.year,
                             caption_ext=args.language, version=args.version,
-                            vocab=train_vocab)
+                            vocab=train_vocab, max_seq_len=args.max_seq_len)
     train_loader = torch.utils.data.DataLoader(
         train_dataset, batch_size=args.batch_size, shuffle=True)
     val_loader = torch.utils.data.DataLoader(
@@ -84,19 +100,104 @@ if __name__ == '__main__':
         test_dataset, batch_size=args.batch_size, shuffle=True)
 
     # Models
+    if args.debug:
+        logging.info("Running in debug mode...")
+        args.n_epochs = 10
+        args.encoded_img_size = 32
+        args.attention_dim = 32
+        args.embedding_dim = 16
+        args.decoder_dim = 16
+        args.dropout_rate = 0.
+
     encoder = ImageEncoder(args.encoded_img_size)
     decoder = CaptionDecoder(args.attention_dim, args.embedding_dim,
                              args.decoder_dim, len(train_vocab),
                              dropout_rate=args.dropout_rate)
 
-    loss = nn.CrossEntropyLoss().to()
+    # Optimizers
+    encoder_optimizer = torch.optim.Adam(
+        params=filter(lambda p: p.requires_grad, encoder.parameters()),
+        lr=args.encoder_lr) if args.fine_tune_encoder else None
+
+    decoder_optimizer = torch.optim.Adam(
+        params=filter(lambda p: p.requires_grad, decoder.parameters()),
+        lr=args.decoder_lr)
+
+    # Loss
+    loss = nn.CrossEntropyLoss().to(device)
 
     for epoch in range(args.n_epochs):
 
         # Train
+        train_loss_meter = AverageMeter()
+        encoder.train()
+        decoder.train()
         pbar = tqdm.tqdm(total=len(train_loader))
         for batch_idx, batch in enumerate(train_loader):
-            # import pdb; pdb.set_trace();
+            X_images = batch['image']
+            X_captions = batch['text']
+            caption_lengths = batch['text_len']
+            batch_size = X_images.size(0)
+
+            encoded_imgs = encoder(X_images)
+            scores, captions_sorted, decode_lens, alphas, sort_idxs = \
+                decoder(encoded_imgs, X_captions, caption_lengths)
+            targets = captions_sorted[:, 1:]
+
+            scores_copy = scores.clone()
+            scores, _ = \
+                pack_padded_sequence(scores, decode_lens, batch_first=True)
+            targets, _ = \
+                pack_padded_sequence(targets, decode_lens, batch_first=True)
+
+            loss_ = loss(scores, targets)
+            # "Doubly stochastic attention regularization" from paper
+            loss_ += args.alpha_c * ((1. - alphas.sum(dim=1)) ** 2).mean()
+            train_loss_meter.update(loss_.item(), batch_size)
+
+            # Back prop
+            decoder_optimizer.zero_grad()
+            if encoder_optimizer is not None:
+                encoder_optimizer.zero_grad()
+
+            loss_.backward()
+
+            # Gradient clipping
+            if args.grad_clip is not None:
+                clip_gradient(decoder_optimizer, args.grad_clip)
+                if encoder_optimizer is not None:
+                    clip_gradient(encoder_optimizer, args.grad_clip)
+
+            decoder_optimizer.step()
+            if encoder_optimizer is not None:
+                encoder_optimizer.step()
+        pbar.close()
+
+        # Val
+        pbar = tqdm.tqdm(total=len(val_loader))
+        for batch_idx, batch in enumerate(val_loader):
+            X_images = batch['image']
+            X_captions = batch['text']
+            caption_lengths = batch['text_len']
+            batch_size = X_images.size(0)
+
+            encoded_imgs = encoder(X_images)
+            scores, captions_sorted, decode_lens, alphas, sort_idxs = \
+                decoder(encoded_imgs, X_captions, caption_lengths)
+            targets = captions_sorted[:, 1:]
+
+            scores_copy = scores.clone()
+            scores, _ = \
+                pack_padded_sequence(scores, decode_lens, batch_first=True)
+            targets, _ = \
+                pack_padded_sequence(targets, decode_lens, batch_first=True)
+
+            pbar.update()
+        pbar.close()
+
+        # Test
+        pbar = tqdm.tqdm(total=len(test_loader))
+        for batch_idx, batch in enumerate(test_loader):
             X_images = batch['image']
             X_captions = batch['text']
             caption_lengths = batch['text_len']
@@ -111,18 +212,5 @@ if __name__ == '__main__':
                 pack_padded_sequence(scores, decode_lens, batch_first=True)
             targets, _ = \
                 pack_padded_sequence(targets, decode_lens, batch_first=True)
-
-        pbar.close()
-
-        # Val
-        pbar = tqdm.tqdm(total=len(val_loader))
-        for batch_idx, batch in enumerate(val_loader):
-            pbar.update()
-        pbar.close()
-
-        # Test
-        # Val
-        pbar = tqdm.tqdm(total=len(test_loader))
-        for batch_idx, batch in enumerate(test_loader):
             pbar.update()
         pbar.close()

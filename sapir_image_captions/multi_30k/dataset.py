@@ -39,7 +39,7 @@ class CaptionTask2Dataset(Dataset):
     """
 
     def __init__(self, data_dir, split, year='2016', caption_ext='en',
-                 version=1, min_token_freq=1, vocab=None):
+                 version=1, min_token_freq=1, max_seq_len=50, vocab=None):
         super(CaptionTask2Dataset, self).__init__()
         self.data_dir = data_dir
         self.images_store = os.path.join(self.data_dir, "flickr30k-images")
@@ -48,6 +48,7 @@ class CaptionTask2Dataset(Dataset):
         self.caption_ext = caption_ext
         self.version = version
         self.min_token_freq = min_token_freq
+        self.max_seq_len = max_seq_len
 
         image_indices_path = os.path.join(self.data_dir,
                                           "data/task2/image_splits")
@@ -122,8 +123,8 @@ class CaptionTask2Dataset(Dataset):
         img = Image.open(image_fp)
         img = self.image_transform(img)
 
-        caption, caption_len = \
-            text2tensor(self.captions[item].caption, self.vocab)
+        caption, caption_len = text2tensor(self.captions[item].caption,
+                                           self.vocab, self.max_seq_len)
 
 
         return {'image': img, 'text': caption, 'text_len': caption_len}

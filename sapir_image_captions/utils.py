@@ -3,6 +3,25 @@ import torch
 from sapir_image_captions import UNK_TOKEN, PAD_TOKEN, SOS_TOKEN, EOS_TOKEN
 
 
+class AverageMeter(object):
+    """Computes and sto res the average and current value"""
+
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.val = 0
+        self.avg = 0
+        self.sum = 0
+        self.count = 0
+
+    def update(self, val, n=1):
+        self.val = val
+        self.sum += val * n
+        self.count += n
+        self.avg = self.sum / self.count
+
+
 def text2tensor(text, vocab, max_seq_length=30, device='cpu'):
     """Convert string text into numerical tensor.
 
@@ -53,3 +72,21 @@ def tensor2text(data, vocab):
     for row in torch.split(data, 1, dim=0):
         res.append([vocab.itos[idx] for idx in row.squeeze().tolist()])
     return res
+
+
+def clip_gradient(optimizer, grad_clip):
+    """
+    Clips gradients computed during backpropagation to avoid explosion of gradients.
+
+    Parameters
+    -----------
+    optimizer: torch.optim
+        Optimizer with the gradients to be clipped
+    grad_clip: float
+        Clip value
+
+    """
+    for group in optimizer.param_groups:
+        for param in group['params']:
+            if param.grad is not None:
+                param.grad.data.clamp_(-grad_clip, grad_clip)
