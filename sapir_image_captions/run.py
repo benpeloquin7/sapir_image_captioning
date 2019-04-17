@@ -9,15 +9,21 @@ Assume dir structure for Multi30k data
 """
 
 import logging
+import numpy as np
+import os
+import pandas as pd
+import sys
 import tqdm
 
 import torch
 from torch import nn
 from torch.nn.utils.rnn import pack_padded_sequence
 
+from sapir_image_captions.checkpoints import save_checkpoint
 from sapir_image_captions.models import CaptionDecoder, ImageEncoder
 from sapir_image_captions.multi_30k.dataset import CaptionTask2Dataset
-from sapir_image_captions.utils import AverageMeter, clip_gradient
+from sapir_image_captions.utils import AverageMeter, clip_gradient, \
+    make_safe_dir
 
 logging.getLogger().setLevel(logging.INFO)
 
@@ -38,6 +44,19 @@ if __name__ == '__main__':
                         help="Use cuda [Default: False].")
     parser.add_argument("--debug", action='store_true', default=False,
                         help="Run model weith debug params [Default: False].")
+    parser.add_argument("--out-dir", type=str, default="./outputs",
+                        help="Output directory [Default: ./outputs].")
+    # Model params
+    parser.add_argument("--encoded-img-size", type=int, default=14,
+                        help="Encoded image size [Default: 14].")
+    parser.add_argument("--attention-dim", type=int, default=512,
+                        help="Attention dims [Default: 512].")
+    parser.add_argument("--embedding-dim", type=int, default=256,
+                        help="Embedding dims [Default: 256].")
+    parser.add_argument("--decoder-dim", type=int, default=256,
+                        help="Decoder hidden dims [Default: 256].")
+    parser.add_argument("--dropout-rate", type=float, default=0.5,
+                        help="Dropout rate [Default: 0.5].")
     parser.add_argument("--fine-tune-encoder", action='store_true',
                         default=False, help="Update encoder weights "
                                             "[Default: False].")
@@ -50,18 +69,6 @@ if __name__ == '__main__':
     parser.add_argument("--alpha-c", type=float, default=5.,
                         help="Regularization parameter for "
                              "'doubly stochastic attention' [Default: 1.]")
-
-    # Model params
-    parser.add_argument("--encoded-img-size", type=int, default=14,
-                        help="Encoded image size [Default: 14].")
-    parser.add_argument("--attention-dim", type=int, default=512,
-                        help="Attention dims [Default: 512].")
-    parser.add_argument("--embedding-dim", type=int, default=256,
-                        help="Embedding dims [Default: 256].")
-    parser.add_argument("--decoder-dim", type=int, default=256,
-                        help="Decoder hidden dims [Default: 256].")
-    parser.add_argument("--dropout-rate", type=float, default=0.5,
-                        help="Dropout rate [Default: 0.5].")
     # Data params
     parser.add_argument("--max-seq-len", type=int, default=50,
                         help="Maximum caption sequence [Default: 50].")
@@ -99,7 +106,7 @@ if __name__ == '__main__':
     test_loader = torch.utils.data.DataLoader(
         test_dataset, batch_size=args.batch_size, shuffle=True)
 
-    # Models
+    # Run mode
     if args.debug:
         logging.info("Running in debug mode...")
         args.n_epochs = 10
@@ -109,6 +116,7 @@ if __name__ == '__main__':
         args.decoder_dim = 16
         args.dropout_rate = 0.
 
+    # Models
     encoder = ImageEncoder(args.encoded_img_size)
     decoder = CaptionDecoder(args.attention_dim, args.embedding_dim,
                              args.decoder_dim, len(train_vocab),
@@ -125,6 +133,10 @@ if __name__ == '__main__':
 
     # Loss
     loss = nn.CrossEntropyLoss().to(device)
+
+    make_safe_dir(args.out_dir)
+    best_loss = sys.maxint
+    losses = np.zeros((args.n_epochs, 3))  # track train, val, test losses
 
     for epoch in range(args.n_epochs):
 
@@ -174,6 +186,9 @@ if __name__ == '__main__':
         pbar.close()
 
         # Val
+        val_loss_meter = AverageMeter()
+        encoder.eval()
+        decoder.eval()
         pbar = tqdm.tqdm(total=len(val_loader))
         for batch_idx, batch in enumerate(val_loader):
             X_images = batch['image']
@@ -192,10 +207,16 @@ if __name__ == '__main__':
             targets, _ = \
                 pack_padded_sequence(targets, decode_lens, batch_first=True)
 
+            loss_ = loss(scores, targets)
+            # "Doubly stochastic attention regularization" from paper
+            loss_ += args.alpha_c * ((1. - alphas.sum(dim=1)) ** 2).mean()
+            val_loss_meter.update(loss_.item(), batch_size)
+
             pbar.update()
         pbar.close()
 
         # Test
+        test_loss_meter = AverageMeter()
         pbar = tqdm.tqdm(total=len(test_loader))
         for batch_idx, batch in enumerate(test_loader):
             X_images = batch['image']
@@ -212,5 +233,50 @@ if __name__ == '__main__':
                 pack_padded_sequence(scores, decode_lens, batch_first=True)
             targets, _ = \
                 pack_padded_sequence(targets, decode_lens, batch_first=True)
+
+            loss_ = loss(scores, targets)
+            # "Doubly stochastic attention regularization" from paper
+            loss_ += args.alpha_c * ((1. - alphas.sum(dim=1)) ** 2).mean()
+            test_loss_meter.update(loss_.item(), batch_size)
+
             pbar.update()
         pbar.close()
+
+        # Log losses
+        losses[epoch, 0] = train_loss_meter.avg
+        losses[epoch, 1] = val_loss_meter.avg
+        losses[epoch, 2] = test_loss_meter.avg
+        # losses[epoch, 3] = dev_ppl  # perplexity
+        is_best = val_loss_meter.avg < best_loss
+        best_loss = min(val_loss_meter.avg, best_loss)
+
+        # Checkpoints
+        state_params = {
+            'epoch': epoch,
+            'encoder_state_dict': encoder.state_dict(),
+            'encoder_optimizer_state_dict': encoder_optimizer.state_dict() \
+                if encoder_optimizer is not None else None,
+            'decoder_state_dict': decoder.state_dict(),
+            'decoder_optimizer_state_dict': decoder_optimizer.state_dict(),
+            'train_loss': train_loss_meter.avg,
+            'dev_loss': val_loss_meter.avg,
+            'test_loss': test_loss_meter.avg,
+            'cmd_line_args': args
+        }
+        _checkpoint = state_params.copy()
+        save_checkpoint(_checkpoint, is_best, folder=args.out_dir)
+
+    # Cache losses
+    loss_typs = ['train', 'dev', 'test']
+    data = {
+        'epochs': np.concatenate([list(range(args.n_epochs)) \
+                                  for _ in
+                                  range(len(loss_typs))]).tolist(),
+        'typ': np.concatenate([np.repeat(typ, losses.shape[0]) \
+                               for typ in loss_typs]).tolist(),
+        'val': np.concatenate([losses[:, i] \
+                               for i in range(losses.shape[1])]).tolist()
+    }
+    df_losses = pd.DataFrame(data)
+    df_losses.to_csv(os.path.join(args.out_dir, "losses.csv"))
+

@@ -1,3 +1,7 @@
+"""utils.py"""
+
+import os
+
 import torch
 
 from sapir_image_captions import UNK_TOKEN, PAD_TOKEN, SOS_TOKEN, EOS_TOKEN
@@ -90,3 +94,8 @@ def clip_gradient(optimizer, grad_clip):
         for param in group['params']:
             if param.grad is not None:
                 param.grad.data.clamp_(-grad_clip, grad_clip)
+
+
+def make_safe_dir(output_dir):
+    if not os.path.isdir(output_dir):
+        os.makedirs(output_dir)
