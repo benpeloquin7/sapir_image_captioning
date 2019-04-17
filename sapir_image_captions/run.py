@@ -153,6 +153,9 @@ if __name__ == '__main__':
             X_captions = batch['text']
             caption_lengths = batch['text_len']
             batch_size = X_images.size(0)
+            if args.cuda:
+                X_images = X_images.cuda()
+                X_captions = X_captions.cuda()
 
             encoded_imgs = encoder(X_images)
             scores, captions_sorted, decode_lens, alphas, sort_idxs = \
