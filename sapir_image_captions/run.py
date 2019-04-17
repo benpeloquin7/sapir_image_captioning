@@ -138,7 +138,7 @@ if __name__ == '__main__':
     loss = nn.CrossEntropyLoss().to(device)
 
     make_safe_dir(args.out_dir)
-    best_loss = sys.maxint
+    best_loss = np.inf
     losses = np.zeros((args.n_epochs, 3))  # track train, val, test losses
 
     for epoch in range(args.n_epochs):
