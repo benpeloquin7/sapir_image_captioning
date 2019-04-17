@@ -121,6 +121,9 @@ if __name__ == '__main__':
     decoder = CaptionDecoder(args.attention_dim, args.embedding_dim,
                              args.decoder_dim, len(train_vocab),
                              dropout_rate=args.dropout_rate)
+    if args.cuda:
+        encoder = encoder.cuda()
+        decoder = decoder.cuda()
 
     # Optimizers
     encoder_optimizer = torch.optim.Adam(
