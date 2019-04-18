@@ -122,7 +122,7 @@ if __name__ == '__main__':
     encoder = ImageEncoder(args.encoded_img_size)
     decoder = CaptionDecoder(args.attention_dim, args.embedding_dim,
                              args.decoder_dim, len(train_vocab),
-                             dropout_rate=args.dropout_rate)
+                             dropout_rate=args.dropout_rate, device=device)
     encoder = encoder.to(device)
     decoder = decoder.to(device)
 
@@ -167,7 +167,6 @@ if __name__ == '__main__':
                 pack_padded_sequence(scores, decode_lens, batch_first=True)
             targets, _ = \
                 pack_padded_sequence(targets, decode_lens, batch_first=True)
-
             loss_ = loss(scores, targets)
             # "Doubly stochastic attention regularization" from paper
             loss_ += args.alpha_c * ((1. - alphas.sum(dim=1)) ** 2).mean()
