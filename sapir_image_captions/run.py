@@ -89,7 +89,7 @@ if __name__ == '__main__':
 
     # Run mode
     if args.debug:
-        logging.info("Running in debug mode...")
+
         args.n_epochs = 10
         args.encoded_img_size = 32
         args.attention_dim = 32
@@ -97,6 +97,17 @@ if __name__ == '__main__':
         args.decoder_dim = 16
         args.dropout_rate = 0.
         args.max_seq_len = 10
+        logging.info("""Running in debug mode with params:
+        n_epochs {}
+        encoded_image_size {}
+        attention_dim {}
+        embedding_dim {}
+        decoder_dim {}
+        dropout_rate {}
+        max_seq_len {}
+        """.format(args.n_epochs, args.encoded_img_size, args.attention_dim,
+                   args.embedding_dim, args.decoder_dim, args.dropout_rate,
+                   args.max_seq_len))
 
     # Data
     train_dataset = \
@@ -151,6 +162,7 @@ if __name__ == '__main__':
         decoder.train()
         pbar = tqdm.tqdm(total=len(train_loader))
         for batch_idx, batch in enumerate(train_loader):
+            print(batch_idx)
             X_images = batch['image']
             X_captions = batch['text']
             caption_lengths = batch['text_len']
@@ -158,7 +170,6 @@ if __name__ == '__main__':
             X_images = X_images.to(device)
             X_captions = X_captions.to(device)
             caption_lengths.to(device)
-            import pdb; pdb.set_trace();
 
             encoded_imgs = encoder(X_images)
             scores, captions_sorted, decode_lens, alphas, sort_idxs = \
