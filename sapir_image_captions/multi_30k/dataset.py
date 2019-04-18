@@ -123,11 +123,11 @@ class CaptionTask2Dataset(Dataset):
         img = Image.open(image_fp)
         img = self.image_transform(img)
 
-        caption, caption_len = text2tensor(self.captions[item].caption,
+        caption, original_caption_len = text2tensor(self.captions[item].caption,
                                            self.vocab, self.max_seq_len)
 
 
-        return {'image': img, 'text': caption, 'text_len': caption_len}
+        return {'image': img, 'text': caption, 'text_len': len(caption)}
 
     def __len__(self):
         return len(self.captions)

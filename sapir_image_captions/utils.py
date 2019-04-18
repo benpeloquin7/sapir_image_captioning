@@ -49,7 +49,6 @@ def text2tensor(text, vocab, max_seq_length=30, device='cpu'):
     UNK_IDX, SOS_IDX, EOS_IDX, PAD_IDX = \
         map(lambda x: vocab.stoi[x],
             [UNK_TOKEN, SOS_TOKEN, EOS_TOKEN, PAD_TOKEN])
-
     original_len = len(text)
     text = [SOS_IDX] + [vocab.stoi.get(ch, UNK_IDX) for ch in text]
     text = text[:max_seq_length - 1] + [EOS_IDX]
