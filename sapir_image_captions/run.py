@@ -117,6 +117,7 @@ if __name__ == '__main__':
         args.embedding_dim = 16
         args.decoder_dim = 16
         args.dropout_rate = 0.
+        args.max_seq_len = 10
 
     # Models
     encoder = ImageEncoder(args.encoded_img_size)
@@ -156,6 +157,8 @@ if __name__ == '__main__':
             batch_size = X_images.size(0)
             X_images = X_images.to(device)
             X_captions = X_captions.to(device)
+            caption_lengths.to(device)
+            import pdb; pdb.set_trace();
 
             encoded_imgs = encoder(X_images)
             scores, captions_sorted, decode_lens, alphas, sort_idxs = \
