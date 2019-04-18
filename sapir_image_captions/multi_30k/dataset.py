@@ -89,9 +89,13 @@ class CaptionTask2Dataset(Dataset):
                 .values \
                 .squeeze() \
                 .tolist()
+
+        normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                         std=[0.229, 0.224, 0.225])
         self.image_transform = transforms.Compose([
             # Note (BP): resizing (256, 256) here was picked
             # somewhat arbitrarily
+            normalize,
             transforms.Resize((256, 256)),
             transforms.ToTensor()
         ])

@@ -213,6 +213,9 @@ if __name__ == '__main__':
             X_captions = batch['text']
             caption_lengths = batch['text_len']
             batch_size = X_images.size(0)
+            X_images = X_images.to(device)
+            X_captions = X_captions.to(device)
+            caption_lengths = caption_lengths.to(device)
 
             encoded_imgs = encoder(X_images)
             scores, captions_sorted, decode_lens, alphas, sort_idxs = \
@@ -240,6 +243,10 @@ if __name__ == '__main__':
             X_images = batch['image']
             X_captions = batch['text']
             caption_lengths = batch['text_len']
+            batch_size = X_images.size(0)
+            X_images = X_images.to(device)
+            X_captions = X_captions.to(device)
+            caption_lengths = caption_lengths.to(device)
 
             encoded_imgs = encoder(X_images)
             scores, captions_sorted, decode_lens, alphas, sort_idxs = \
