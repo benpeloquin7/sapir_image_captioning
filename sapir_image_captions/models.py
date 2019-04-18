@@ -122,7 +122,8 @@ class CaptionDecoder(nn.Module):
     """
 
     def __init__(self, attention_dim, embedding_dim, decoder_dim, vocab_size,
-                 encoder_dim=2048, dropout_rate=0.5):
+                 encoder_dim=2048, dropout_rate=0.5,
+                 device=torch.device('cpu')):
         super(CaptionDecoder, self).__init__()
         self.attention_dim = attention_dim
         self.embedding_dim = embedding_dim
@@ -130,6 +131,7 @@ class CaptionDecoder(nn.Module):
         self.vocab_size = vocab_size
         self.encoder_dim = encoder_dim
         self.dropout_rate = dropout_rate
+        self.device = device
 
         self.attention = \
             Attention(self.encoder_dim, self.decoder_dim, self.attention_dim)
@@ -144,13 +146,12 @@ class CaptionDecoder(nn.Module):
         self.sigmoid = nn.Sigmoid()
         self.fc = nn.Linear(self.decoder_dim, self.vocab_size)       # Linear layer to find scores over vocab
         self.init_weights()
-        self.device = self.fc.weight.device
 
     def init_weights(self):
         """Initialize layers."""
-        self.embedding.weight.data.uniform_(-0.1, 0.1)
-        self.fc.bias.data.fill_(0)
-        self.fc.weight.data.uniform_(-0.1, 0.1)
+        self.embedding.weight.data.uniform_(-0.1, 0.1).to(self.device)
+        self.fc.bias.data.fill_(0).to(self.device)
+        self.fc.weight.data.uniform_(-0.1, 0.1).to(self.device)
 
     def load_pretrained_embeddings(self, embeddings):
         """Load embeddings layer with pre-trained embeddings."""
