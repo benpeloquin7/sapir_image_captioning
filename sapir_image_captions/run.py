@@ -204,68 +204,70 @@ if __name__ == '__main__':
         pbar.close()
 
         # Val
-        val_loss_meter = AverageMeter()
-        encoder.eval()
-        decoder.eval()
-        pbar = tqdm.tqdm(total=len(val_loader))
-        for batch_idx, batch in enumerate(val_loader):
-            X_images = batch['image']
-            X_captions = batch['text']
-            caption_lengths = batch['text_len']
-            batch_size = X_images.size(0)
-            X_images = X_images.to(device)
-            X_captions = X_captions.to(device)
-            caption_lengths = caption_lengths.to(device)
+        with torch.no_grad():
+            val_loss_meter = AverageMeter()
+            encoder.eval()
+            decoder.eval()
+            pbar = tqdm.tqdm(total=len(val_loader))
+            for batch_idx, batch in enumerate(val_loader):
+                X_images = batch['image']
+                X_captions = batch['text']
+                caption_lengths = batch['text_len']
+                batch_size = X_images.size(0)
+                X_images = X_images.to(device)
+                X_captions = X_captions.to(device)
+                caption_lengths = caption_lengths.to(device)
 
-            encoded_imgs = encoder(X_images)
-            scores, captions_sorted, decode_lens, alphas, sort_idxs = \
-                decoder(encoded_imgs, X_captions, caption_lengths)
-            targets = captions_sorted[:, 1:]
+                encoded_imgs = encoder(X_images)
+                scores, captions_sorted, decode_lens, alphas, sort_idxs = \
+                    decoder(encoded_imgs, X_captions, caption_lengths)
+                targets = captions_sorted[:, 1:]
 
-            scores_copy = scores.clone()
-            scores, _ = \
-                pack_padded_sequence(scores, decode_lens, batch_first=True)
-            targets, _ = \
-                pack_padded_sequence(targets, decode_lens, batch_first=True)
+                scores_copy = scores.clone()
+                scores, _ = \
+                    pack_padded_sequence(scores, decode_lens, batch_first=True)
+                targets, _ = \
+                    pack_padded_sequence(targets, decode_lens, batch_first=True)
 
-            loss_ = loss(scores, targets)
-            # "Doubly stochastic attention regularization" from paper
-            loss_ += args.alpha_c * ((1. - alphas.sum(dim=1)) ** 2).mean()
-            val_loss_meter.update(loss_.item(), batch_size)
+                loss_ = loss(scores, targets)
+                # "Doubly stochastic attention regularization" from paper
+                loss_ += args.alpha_c * ((1. - alphas.sum(dim=1)) ** 2).mean()
+                val_loss_meter.update(loss_.item(), batch_size)
 
-            pbar.update()
-        pbar.close()
+                pbar.update()
+            pbar.close()
 
         # Test
-        test_loss_meter = AverageMeter()
-        pbar = tqdm.tqdm(total=len(test_loader))
-        for batch_idx, batch in enumerate(test_loader):
-            X_images = batch['image']
-            X_captions = batch['text']
-            caption_lengths = batch['text_len']
-            batch_size = X_images.size(0)
-            X_images = X_images.to(device)
-            X_captions = X_captions.to(device)
-            caption_lengths = caption_lengths.to(device)
+        with torch.no_grad():
+            test_loss_meter = AverageMeter()
+            pbar = tqdm.tqdm(total=len(test_loader))
+            for batch_idx, batch in enumerate(test_loader):
+                X_images = batch['image']
+                X_captions = batch['text']
+                caption_lengths = batch['text_len']
+                batch_size = X_images.size(0)
+                X_images = X_images.to(device)
+                X_captions = X_captions.to(device)
+                caption_lengths = caption_lengths.to(device)
 
-            encoded_imgs = encoder(X_images)
-            scores, captions_sorted, decode_lens, alphas, sort_idxs = \
-                decoder(encoded_imgs, X_captions, caption_lengths)
-            targets = captions_sorted[:, 1:]
+                encoded_imgs = encoder(X_images)
+                scores, captions_sorted, decode_lens, alphas, sort_idxs = \
+                    decoder(encoded_imgs, X_captions, caption_lengths)
+                targets = captions_sorted[:, 1:]
 
-            scores_copy = scores.clone()
-            scores, _ = \
-                pack_padded_sequence(scores, decode_lens, batch_first=True)
-            targets, _ = \
-                pack_padded_sequence(targets, decode_lens, batch_first=True)
+                scores_copy = scores.clone()
+                scores, _ = \
+                    pack_padded_sequence(scores, decode_lens, batch_first=True)
+                targets, _ = \
+                    pack_padded_sequence(targets, decode_lens, batch_first=True)
 
-            loss_ = loss(scores, targets)
-            # "Doubly stochastic attention regularization" from paper
-            loss_ += args.alpha_c * ((1. - alphas.sum(dim=1)) ** 2).mean()
-            test_loss_meter.update(loss_.item(), batch_size)
+                loss_ = loss(scores, targets)
+                # "Doubly stochastic attention regularization" from paper
+                loss_ += args.alpha_c * ((1. - alphas.sum(dim=1)) ** 2).mean()
+                test_loss_meter.update(loss_.item(), batch_size)
 
-            pbar.update()
-        pbar.close()
+                pbar.update()
+            pbar.close()
 
         # Log losses
         losses[epoch, 0] = train_loss_meter.avg

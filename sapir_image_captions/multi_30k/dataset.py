@@ -95,9 +95,9 @@ class CaptionTask2Dataset(Dataset):
         self.image_transform = transforms.Compose([
             # Note (BP): resizing (256, 256) here was picked
             # somewhat arbitrarily
-            normalize,
             transforms.Resize((256, 256)),
-            transforms.ToTensor()
+            transforms.ToTensor(),
+            normalize
         ])
 
         # Captions
