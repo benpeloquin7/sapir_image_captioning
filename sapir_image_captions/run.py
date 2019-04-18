@@ -87,6 +87,17 @@ if __name__ == '__main__':
                               if args.cuda and torch.cuda.is_available() \
                               else 'cpu')
 
+    # Run mode
+    if args.debug:
+        logging.info("Running in debug mode...")
+        args.n_epochs = 10
+        args.encoded_img_size = 32
+        args.attention_dim = 32
+        args.embedding_dim = 16
+        args.decoder_dim = 16
+        args.dropout_rate = 0.
+        args.max_seq_len = 10
+
     # Data
     train_dataset = \
         CaptionTask2Dataset(args.data_dir, "train", year=args.year,
@@ -107,17 +118,6 @@ if __name__ == '__main__':
         val_dataset, batch_size=args.batch_size, shuffle=True)
     test_loader = torch.utils.data.DataLoader(
         test_dataset, batch_size=args.batch_size, shuffle=True)
-
-    # Run mode
-    if args.debug:
-        logging.info("Running in debug mode...")
-        args.n_epochs = 10
-        args.encoded_img_size = 32
-        args.attention_dim = 32
-        args.embedding_dim = 16
-        args.decoder_dim = 16
-        args.dropout_rate = 0.
-        args.max_seq_len = 10
 
     # Models
     encoder = ImageEncoder(args.encoded_img_size)
