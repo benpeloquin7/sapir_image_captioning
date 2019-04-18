@@ -89,7 +89,6 @@ if __name__ == '__main__':
 
     # Run mode
     if args.debug:
-
         args.n_epochs = 10
         args.encoded_img_size = 32
         args.attention_dim = 32
@@ -162,7 +161,6 @@ if __name__ == '__main__':
         decoder.train()
         pbar = tqdm.tqdm(total=len(train_loader))
         for batch_idx, batch in enumerate(train_loader):
-            print(batch_idx)
             X_images = batch['image']
             X_captions = batch['text']
             caption_lengths = batch['text_len']
@@ -202,6 +200,7 @@ if __name__ == '__main__':
             decoder_optimizer.step()
             if encoder_optimizer is not None:
                 encoder_optimizer.step()
+            pbar.update()
         pbar.close()
 
         # Val
