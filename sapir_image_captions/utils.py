@@ -1,14 +1,18 @@
 """utils.py"""
 
+import matplotlib.pyplot as plt
 import os
 
 import torch
+from torchvision.utils import make_grid, save_image
 
 from sapir_image_captions import UNK_TOKEN, PAD_TOKEN, SOS_TOKEN, EOS_TOKEN
 
+GLOBAL_TOKENS = [UNK_TOKEN, PAD_TOKEN, SOS_TOKEN, EOS_TOKEN]
+
 
 class AverageMeter(object):
-    """Computes and sto res the average and current value"""
+    """Computes and stores the average and current value"""
 
     def __init__(self):
         self.reset()
@@ -98,3 +102,34 @@ def clip_gradient(optimizer, grad_clip):
 def make_safe_dir(output_dir):
     if not os.path.isdir(output_dir):
         os.makedirs(output_dir)
+
+
+def images2grid(image_batch):
+    batch_size, c, h, w = image_batch.size()
+    nrows = int(batch_size / 2)
+    grid_img = make_grid(image_batch, nrow=nrows)
+    return grid_img
+
+
+def save_caption(caption_batch, vocab, f_path, preprocess=lambda x: x):
+    captions = tensor2text(caption_batch, vocab)
+    with open(f_path, 'w') as fp:
+        for caption in captions:
+            fp.write("{}\n".format(" ".join(preprocess(caption))))
+
+
+def remove_eos_sos(sent):
+    """Preprocessing functinoality for captions.
+
+    Parameters
+    ----------
+    sent: list[str]
+        List of string tokens.
+
+    Returns
+    -------
+    list[str]
+        List of string tokens with SOS and EOS removed.
+
+    """
+    return [tok for tok in sent if tok not in [EOS_TOKEN, SOS_TOKEN]]

@@ -12,18 +12,18 @@ import logging
 import numpy as np
 import os
 import pandas as pd
-import sys
 import tqdm
 
 import torch
 from torch import nn
 from torch.nn.utils.rnn import pack_padded_sequence
+from torchvision.utils import save_image
 
 from sapir_image_captions.checkpoints import save_checkpoint
 from sapir_image_captions.models import CaptionDecoder, ImageEncoder
 from sapir_image_captions.multi_30k.dataset import CaptionTask2Dataset
 from sapir_image_captions.utils import AverageMeter, clip_gradient, \
-    make_safe_dir
+    make_safe_dir, remove_eos_sos, save_caption
 
 logging.getLogger().setLevel(logging.INFO)
 
@@ -70,6 +70,8 @@ if __name__ == '__main__':
                         help="Regularization parameter for "
                              "'doubly stochastic attention' [Default: 1.]")
     # Data params
+    parser.add_argument("--max-size", type=int, default=None,
+                        help="Maximium number of examples [Default: None].")
     parser.add_argument("--max-seq-len", type=int, default=50,
                         help="Maximum caption sequence [Default: 50].")
     parser.add_argument("--year", type=int, default=2016,
@@ -81,6 +83,8 @@ if __name__ == '__main__':
                         help="Data collected version. Note that there are 5"
                              "versions for the independent en/de descriptions."
                              "[Default: 1]")
+    parser.add_argument("--image-size", type=int, default=256,
+                        help="Image resizing [Default: 256].")
     args = parser.parse_args()
 
     device = torch.device('cuda' \
@@ -96,6 +100,8 @@ if __name__ == '__main__':
         args.decoder_dim = 16
         args.dropout_rate = 0.
         args.max_seq_len = 10
+        args.max_size = 1000
+        args.image_size = 128
         logging.info("""Running in debug mode with params:
         n_epochs {}
         encoded_image_size {}
@@ -104,24 +110,29 @@ if __name__ == '__main__':
         decoder_dim {}
         dropout_rate {}
         max_seq_len {}
+        image_size {}
+        max_size {}
         """.format(args.n_epochs, args.encoded_img_size, args.attention_dim,
                    args.embedding_dim, args.decoder_dim, args.dropout_rate,
-                   args.max_seq_len))
+                   args.max_seq_len, args.image_size, args.max_size))
 
     # Data
     train_dataset = \
         CaptionTask2Dataset(args.data_dir, "train", year=args.year,
                             caption_ext=args.language, version=args.version,
-                            max_seq_len=args.max_seq_len)
+                            max_seq_len=args.max_seq_len,
+                            image_size=args.image_size, max_size=args.max_size)
     train_vocab = train_dataset.vocab  # Use train vocab
     val_dataset = \
         CaptionTask2Dataset(args.data_dir, "val", year=args.year,
                             caption_ext=args.language, version=args.version,
-                            vocab=train_vocab, max_seq_len=args.max_seq_len)
+                            vocab=train_vocab, max_seq_len=args.max_seq_len,
+                            image_size=args.image_size, max_size=args.max_size)
     test_dataset = \
         CaptionTask2Dataset(args.data_dir, "test", year=args.year,
                             caption_ext=args.language, version=args.version,
-                            vocab=train_vocab, max_seq_len=args.max_seq_len)
+                            vocab=train_vocab, max_seq_len=args.max_seq_len,
+                            image_size=args.image_size, max_size=args.max_size)
     train_loader = torch.utils.data.DataLoader(
         train_dataset, batch_size=args.batch_size, shuffle=True)
     val_loader = torch.utils.data.DataLoader(
@@ -153,6 +164,7 @@ if __name__ == '__main__':
     best_loss = np.inf
     losses = np.zeros((args.n_epochs, 3))  # track train, val, test losses
 
+    logging.info("Running model...")
     for epoch in range(args.n_epochs):
 
         # Train
@@ -183,6 +195,29 @@ if __name__ == '__main__':
             # "Doubly stochastic attention regularization" from paper
             loss_ += args.alpha_c * ((1. - alphas.sum(dim=1)) ** 2).mean()
             train_loss_meter.update(loss_.item(), batch_size)
+
+            if batch_idx == 0:
+                logging.info("Caching samples for epoch {}...".format(epoch))
+                # Images
+                images_fp = \
+                    os.path.join(args.out_dir, "epoch-{}.png".format(epoch))
+                # Note (BP): Remember to sort.
+                save_image(X_images[sort_idxs], images_fp)
+
+                # Captions
+                gold_captions = captions_sorted
+                scores_ = scores.view(max(decode_lens), -1, scores.size(-1))
+                recon_scores = torch.argmax(scores_, -1)
+                gold_captions_path = \
+                    os.path.join(args.out_dir,
+                                 "epoch-{}-gold.txt".format(epoch))
+                save_caption(gold_captions, train_vocab, gold_captions_path,
+                             preprocess=remove_eos_sos)
+                recon_captions_path = \
+                    os.path.join(args.out_dir,
+                                 "epoch-{}-recon.txt".format(epoch))
+                save_caption(recon_scores, train_vocab, recon_captions_path,
+                             preprocess=remove_eos_sos)
 
             # Back prop
             decoder_optimizer.zero_grad()

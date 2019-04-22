@@ -39,7 +39,8 @@ class CaptionTask2Dataset(Dataset):
     """
 
     def __init__(self, data_dir, split, year='2016', caption_ext='en',
-                 version=1, min_token_freq=1, max_seq_len=50, vocab=None):
+                 version=1, min_token_freq=1, max_seq_len=50, vocab=None,
+                 image_size=256, max_size=None):
         super(CaptionTask2Dataset, self).__init__()
         self.data_dir = data_dir
         self.images_store = os.path.join(self.data_dir, "flickr30k-images")
@@ -49,6 +50,8 @@ class CaptionTask2Dataset(Dataset):
         self.version = version
         self.min_token_freq = min_token_freq
         self.max_seq_len = max_seq_len
+        self.image_size = image_size
+        self.max_size = max_size
 
         image_indices_path = os.path.join(self.data_dir,
                                           "data/task2/image_splits")
@@ -93,9 +96,7 @@ class CaptionTask2Dataset(Dataset):
         normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                          std=[0.229, 0.224, 0.225])
         self.image_transform = transforms.Compose([
-            # Note (BP): resizing (256, 256) here was picked
-            # somewhat arbitrarily
-            transforms.Resize((256, 256)),
+            transforms.Resize((self.image_size, self.image_size)),
             transforms.ToTensor(),
             normalize
         ])
@@ -108,8 +109,14 @@ class CaptionTask2Dataset(Dataset):
         text_field_meta = [('caption', self.text_field)]
         self.captions = \
             data.TabularDataset(path=captions_path, format='CSV',
-                                fields=text_field_meta, skip_header=True,
+                                fields=text_field_meta, skip_header=False,
                                 csv_reader_params={'delimiter': '\n'})
+
+        if self.max_size is not None:
+            max_size_ = min(self.max_size, len(self.captions.examples))
+            self.captions.examples = self.captions.examples[: max_size_]
+            self.image_indices = self.image_indices[: max_size_]
+
         if split == 'train':
             logging.info("Building new vocab...")
             self.text_field.build_vocab(self.captions,
@@ -127,9 +134,9 @@ class CaptionTask2Dataset(Dataset):
         img = Image.open(image_fp)
         img = self.image_transform(img)
 
-        caption, original_caption_len = text2tensor(self.captions[item].caption,
-                                           self.vocab, self.max_seq_len)
-
+        caption, original_caption_len = \
+            text2tensor(self.captions[item].caption, self.vocab,
+                        self.max_seq_len)
 
         return {'image': img, 'text': caption, 'text_len': len(caption)}
 
