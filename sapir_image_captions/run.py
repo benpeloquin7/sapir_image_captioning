@@ -206,7 +206,7 @@ if __name__ == '__main__':
 
                 # Captions
                 gold_captions = captions_sorted
-                scores_ = scores.view(max(decode_lens), -1, scores.size(-1))
+                scores_ = scores.view(-1, max(decode_lens), scores.size(-1))
                 recon_scores = torch.argmax(scores_, -1)
                 gold_captions_path = \
                     os.path.join(args.out_dir,
