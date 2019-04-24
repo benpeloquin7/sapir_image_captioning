@@ -231,10 +231,13 @@ class CaptionDecoder(nn.Module):
                 .to(self.device)
 
         # At each time step decode by attention-weighting the encoder's
-        # output based on teh decoder's previous hidden state output
+        # output based on the decoder's previous hidden state output
         # then generate a new word in the decoder with the previous word
         # and the attention weighted encoding
         for t in range(max(decode_lengths)):
+            # Note (BP): batch_size_t handles variable sizing...
+            # if we get to a point where decode lengths is less than
+            # some other size between it and the max then don't update.
             batch_size_t = sum([l > t for l in decode_lengths])
             attention_weighted_encoding, alpha = \
                 self.attention(encoder_out[:batch_size_t], h[:batch_size_t])

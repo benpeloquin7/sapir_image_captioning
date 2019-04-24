@@ -99,7 +99,7 @@ if __name__ == '__main__':
         args.embedding_dim = 16
         args.decoder_dim = 16
         args.dropout_rate = 0.
-        args.max_seq_len = 10
+        args.max_seq_len = 15
         args.max_size = 1000
         args.image_size = 128
         logging.info("""Running in debug mode with params:
@@ -180,7 +180,6 @@ if __name__ == '__main__':
             X_images = X_images.to(device)
             X_captions = X_captions.to(device)
             caption_lengths.to(device)
-
             encoded_imgs = encoder(X_images)
             scores, captions_sorted, decode_lens, alphas, sort_idxs = \
                 decoder(encoded_imgs, X_captions, caption_lengths)
@@ -193,7 +192,7 @@ if __name__ == '__main__':
                 pack_padded_sequence(targets, decode_lens, batch_first=True)
             loss_ = loss(scores, targets)
             # "Doubly stochastic attention regularization" from paper
-            loss_ += args.alpha_c * ((1. - alphas.sum(dim=1)) ** 2).mean()
+            loss_ += args.alpha_c * ((1. - alphas.sum(dim=1))**2).mean()
             train_loss_meter.update(loss_.item(), batch_size)
 
             if batch_idx == 0:
@@ -206,7 +205,7 @@ if __name__ == '__main__':
 
                 # Captions
                 gold_captions = captions_sorted
-                scores_ = scores.view(-1, max(decode_lens), scores.size(-1))
+                scores_ = scores_copy.view(-1, max(decode_lens), scores.size(-1))
                 recon_scores = torch.argmax(scores_, -1)
                 gold_captions_path = \
                     os.path.join(args.out_dir,

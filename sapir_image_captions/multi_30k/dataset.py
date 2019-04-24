@@ -138,7 +138,10 @@ class CaptionTask2Dataset(Dataset):
             text2tensor(self.captions[item].caption, self.vocab,
                         self.max_seq_len)
 
-        return {'image': img, 'text': caption, 'text_len': len(caption)}
+        return {'image': img, 'text': caption,
+                # Note (BP): If original caption length is longer than
+                # max then we cut it off here too.
+                'text_len': min(original_caption_len, self.max_seq_len)}
 
     def __len__(self):
         return len(self.captions)
