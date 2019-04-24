@@ -18,9 +18,6 @@ class ImageEncoder(nn.Module):
     encoded_img_size: int [Default: 14]
         Fixed size to resize images.
 
-    # Todo (BP): Remember must then normalize the image by the mean and
-    standard deviation of the ImageNet images' RGB channels.
-
     """
     def __init__(self, encoded_img_size=14):
         super(ImageEncoder, self).__init__()
@@ -94,7 +91,7 @@ class Attention(nn.Module):
     def forward(self, encoder_out, decoder_hidden):
         """TODO (BP) step through this..."""
         att_1  = self.encoder_att(encoder_out)     # (batch_size, num_pixels, attention_dim)
-        att_2 = self.decoder_att(decoder_hidden)  # (batch_size, attention_dim)
+        att_2 = self.decoder_att(decoder_hidden)   # (batch_size, attention_dim)
         att = self.relu(att_1 + att_2.unsqueeze(1))
         attention_out = self.full_att(att).squeeze(2)
         alpha = self.softmax(attention_out)
@@ -254,5 +251,4 @@ class CaptionDecoder(nn.Module):
             predictions[:batch_size_t, t, :] = preds
             alphas[:batch_size_t, t, :] = alpha
 
-        return predictions, encoded_captions, \
-               decode_lengths, alphas, sort_idxs
+        return predictions, encoded_captions, decode_lengths, alphas, sort_idxs

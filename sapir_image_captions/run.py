@@ -12,6 +12,7 @@ import logging
 import numpy as np
 import os
 import pandas as pd
+import pickle
 import tqdm
 
 import torch
@@ -347,3 +348,6 @@ if __name__ == '__main__':
     df_losses = pd.DataFrame(data)
     df_losses.to_csv(os.path.join(args.out_dir, "losses.csv"))
 
+    # Cache train vocab
+    with open(os.path.join(args.out_dir, "vocab.pickle")) as fp:
+        pickle.dump(train_vocab, fp)

@@ -4,9 +4,7 @@ Get multi-30k data.
 
 https://github.com/multi30k/dataset
 
-TODO: Looks like differences in images sizes between train/val/test?
-
-[3, 333, 500] vs [3, XXX, 500]???
+Note that flickr images differ in size so we reshape below.
 
 """
 
@@ -93,12 +91,9 @@ class CaptionTask2Dataset(Dataset):
                 .squeeze() \
                 .tolist()
 
-        normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                         std=[0.229, 0.224, 0.225])
         self.image_transform = transforms.Compose([
             transforms.Resize((self.image_size, self.image_size)),
-            transforms.ToTensor(),
-            normalize
+            transforms.ToTensor()
         ])
 
         # Captions
@@ -148,6 +143,11 @@ class CaptionTask2Dataset(Dataset):
 
 
 if __name__ == '__main__':
+    import pickle
+
     d = CaptionTask2Dataset('/Users/benpeloquin/Data/general/multi30k/',
-                            'train', caption_ext='de')
-    data = d.__getitem__(0)
+                            'train', caption_ext='en')
+    vocab = d.vocab
+
+    with open('test_vocab.pickle', 'wb') as fp:
+        pickle.dump(vocab, fp)
