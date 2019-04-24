@@ -303,6 +303,12 @@ if __name__ == '__main__':
                 pbar.update()
             pbar.close()
 
+        logging.info("Epoch {}\n train/val/test loss: {}/{}/{}".format(
+            epoch,
+            round(train_loss_meter.avg, 3),
+            round(val_loss_meter.avg),
+            round(test_loss_meter.avg)))
+
         # Log losses
         losses[epoch, 0] = train_loss_meter.avg
         losses[epoch, 1] = val_loss_meter.avg
