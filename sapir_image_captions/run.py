@@ -88,6 +88,8 @@ if __name__ == '__main__':
                         help="Image resizing [Default: 256].")
     args = parser.parse_args()
 
+    make_safe_dir(args.out_dir)
+
     device = torch.device('cuda' \
                               if args.cuda and torch.cuda.is_available() \
                               else 'cpu')
@@ -165,7 +167,6 @@ if __name__ == '__main__':
     # Loss
     loss = nn.CrossEntropyLoss().to(device)
 
-    make_safe_dir(args.out_dir)
     best_loss = np.inf
     losses = np.zeros((args.n_epochs, 3))  # track train, val, test losses
 
