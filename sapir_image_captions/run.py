@@ -189,7 +189,7 @@ if __name__ == '__main__':
             encoded_imgs = encoder(X_images)
             scores, captions_sorted, decode_lens, alphas, sort_idxs = \
                 decoder(encoded_imgs, X_captions, caption_lengths)
-            targets = captions_sorted[:, 1:]
+            targets = captions_sorted
 
             scores_copy = scores.clone()
             scores, _ = \
