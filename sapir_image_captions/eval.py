@@ -87,7 +87,6 @@ if __name__ == '__main__':
     # Bleu score
     bleu_score = corpus_bleu(all_recon_captions, all_gold_captions)
 
-    
 
     # Attention plot
 
