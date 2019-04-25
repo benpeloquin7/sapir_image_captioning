@@ -124,6 +124,10 @@ if __name__ == '__main__':
                             max_seq_len=args.max_seq_len,
                             image_size=args.image_size, max_size=args.max_size)
     train_vocab = train_dataset.vocab  # Use train vocab
+    # Cache train vocab
+    with open(os.path.join(args.out_dir, "vocab.pickle"), "wb") as fp:
+        pickle.dump(train_vocab, fp)
+
     val_dataset = \
         CaptionTask2Dataset(args.data_dir, "val", year=args.year,
                             caption_ext=args.language, version=args.version,
@@ -347,7 +351,3 @@ if __name__ == '__main__':
     }
     df_losses = pd.DataFrame(data)
     df_losses.to_csv(os.path.join(args.out_dir, "losses.csv"))
-
-    # Cache train vocab
-    with open(os.path.join(args.out_dir, "vocab.pickle")) as fp:
-        pickle.dump(train_vocab, fp)
