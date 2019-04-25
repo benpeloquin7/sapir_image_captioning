@@ -201,29 +201,6 @@ if __name__ == '__main__':
             loss_ += args.alpha_c * ((1. - alphas.sum(dim=1))**2).mean()
             train_loss_meter.update(loss_.item(), batch_size)
 
-            if batch_idx == 0:
-                logging.info("Caching samples for epoch {}...".format(epoch))
-                # Images
-                images_fp = \
-                    os.path.join(args.out_dir, "epoch-{}.png".format(epoch))
-                # Note (BP): Remember to sort.
-                save_image(X_images[sort_idxs], images_fp)
-
-                # Captions
-                gold_captions = captions_sorted
-                scores_ = scores_copy.view(-1, max(decode_lens), scores.size(-1))
-                recon_scores = torch.argmax(scores_, -1)
-                gold_captions_path = \
-                    os.path.join(args.out_dir,
-                                 "epoch-{}-gold.txt".format(epoch))
-                save_caption(gold_captions, train_vocab, gold_captions_path,
-                             preprocess=remove_eos_sos)
-                recon_captions_path = \
-                    os.path.join(args.out_dir,
-                                 "epoch-{}-recon.txt".format(epoch))
-                save_caption(recon_scores, train_vocab, recon_captions_path,
-                             preprocess=remove_eos_sos)
-
             # Back prop
             decoder_optimizer.zero_grad()
             if encoder_optimizer is not None:
@@ -268,6 +245,35 @@ if __name__ == '__main__':
                     pack_padded_sequence(scores, decode_lens, batch_first=True)
                 targets, _ = \
                     pack_padded_sequence(targets, decode_lens, batch_first=True)
+
+                # Cache samples
+                if batch_idx == 0:
+                    logging.info(
+                        "Caching samples for epoch {}...".format(epoch))
+                    # Images
+                    images_fp = \
+                        os.path.join(args.out_dir,
+                                     "epoch-{}.png".format(epoch))
+                    # Note (BP): Remember to sort.
+                    save_image(X_images[sort_idxs], images_fp)
+
+                    # Captions
+                    gold_captions = captions_sorted
+                    scores_ = scores_copy.view(-1, max(decode_lens),
+                                               scores_copy.size(-1))
+                    recon_scores = torch.argmax(scores_, -1)
+                    gold_captions_path = \
+                        os.path.join(args.out_dir,
+                                     "epoch-{}-gold.txt".format(epoch))
+                    save_caption(gold_captions, train_vocab,
+                                 gold_captions_path,
+                                 preprocess=remove_eos_sos)
+                    recon_captions_path = \
+                        os.path.join(args.out_dir,
+                                     "epoch-{}-recon.txt".format(epoch))
+                    save_caption(recon_scores, train_vocab,
+                                 recon_captions_path,
+                                 preprocess=remove_eos_sos)
 
                 loss_ = loss(scores, targets)
                 # "Doubly stochastic attention regularization" from paper
