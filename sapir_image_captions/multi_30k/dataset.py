@@ -112,14 +112,17 @@ class CaptionTask2Dataset(Dataset):
             self.captions.examples = self.captions.examples[: max_size_]
             self.image_indices = self.image_indices[: max_size_]
 
-        if split == 'train':
-            logging.info("Building new vocab...")
+        if vocab is not None:
+            self.vocab = vocab
+        elif split == 'train' or split == 'test':
+            # Note (BP): We allow test sets to write new vocab so that
+            # for evalauation only.
+            logging.info("Building new {} vocab...".format(split))
             self.text_field.build_vocab(self.captions,
                                         min_freq=self.min_token_freq)
             self.vocab = self.text_field.vocab
-        elif vocab is not None:
-            self.vocab = vocab
         else:
+            # Val must have vocab
             raise CaptionDatasetException("Must pass a valid vocab"
                                           " if not train split...")
 

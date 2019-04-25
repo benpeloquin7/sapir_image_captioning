@@ -11,8 +11,9 @@ import torch
 import tqdm
 
 from sapir_image_captions.checkpoints import load_checkpoint
-from sapir_image_captions.multi_30k.dataset import CaptionTask2Dataset
-from sapir_image_captions.utils import tensor2text
+from sapir_image_captions.multi_30k.dataset import CaptionTask2Dataset, \
+    SOS_TOKEN, EOS_TOKEN, PAD_TOKEN
+from sapir_image_captions.utils import tensor2text, remove_tokens
 
 logging.getLogger().setLevel(logging.INFO)
 
@@ -38,19 +39,22 @@ if __name__ == '__main__':
                               if args.cuda and torch.cuda.is_available() \
                               else 'cpu')
 
-    encoder, decoder, vocab, checkpoint = load_checkpoint(args.model_dir)
+    encoder, decoder, train_vocab, checkpoint = load_checkpoint(args.model_dir)
     hyper_params = vars(checkpoint['cmd_line_args'])
 
     test_dataset = \
         CaptionTask2Dataset(args.data_dir, "test", year=hyper_params['year'],
                             caption_ext=hyper_params['language'],
-                            version=hyper_params['version'], vocab=vocab,
+                            version=hyper_params['version'],
                             image_size=hyper_params['image_size'],
                             max_seq_len=hyper_params['max_seq_len'],
                             max_size=hyper_params['max_size'])
+    test_vocab = test_dataset.vocab
     test_loader = torch.utils.data.DataLoader(
         test_dataset, batch_size=args.batch_size, shuffle=True)
 
+    all_recon_captions = []
+    all_gold_captions = []
     pbar = tqdm.tqdm(total=len(test_loader))
     for batch_idx, batch in enumerate(test_loader):
         X_images = batch['image']
@@ -63,20 +67,27 @@ if __name__ == '__main__':
         encoded_imgs = encoder(X_images)
         scores, captions_sorted, decode_lens, alphas, sort_idxs = \
             decoder(encoded_imgs, X_captions, caption_lengths)
-        targets = captions_sorted[:, 1:]
+        targets = captions_sorted
 
         scores_ = scores.view(-1, max(decode_lens),
                               scores.size(-1))
         recon_scores = torch.argmax(scores_, -1)
 
         # Convert to text for bleu score
-        recon_captions = tensor2text(recon_scores, vocab)
-        gold_captions = tensor2text(captions_sorted, vocab)
-        import pdb; pdb.set_trace();
-
+        run_preprocess = \
+            lambda x: remove_tokens(x, [SOS_TOKEN, EOS_TOKEN, PAD_TOKEN])
+        all_recon_captions.extend(
+            [run_preprocess(sent) \
+             for sent in tensor2text(recon_scores, train_vocab)])
+        # Note (BP): Wrap in
+        all_gold_captions.append(
+            [run_preprocess(sent) \
+             for sent in  tensor2text(captions_sorted, test_vocab)])
 
     # Bleu score
+    bleu_score = corpus_bleu(all_recon_captions, all_gold_captions)
 
+    
 
     # Attention plot
 

@@ -118,6 +118,23 @@ def save_caption(caption_batch, vocab, f_path, preprocess=lambda x: x):
             fp.write("{}\n".format(" ".join(preprocess(caption))))
 
 
+def remove_tokens(sent, bad_token_list):
+    """Preprocessing functinoality for captions.
+
+        Parameters
+        ----------
+        sent: list[str]
+            List of string tokens.
+
+        Returns
+        -------
+        list[str]
+            List of string tokens with SOS and EOS removed.
+
+    """
+    return [tok for tok in sent if tok not in bad_token_list]
+
+
 def remove_eos_sos(sent):
     """Preprocessing functinoality for captions.
 
@@ -132,4 +149,4 @@ def remove_eos_sos(sent):
         List of string tokens with SOS and EOS removed.
 
     """
-    return [tok for tok in sent if tok not in [EOS_TOKEN, SOS_TOKEN]]
+    return remove_tokens(sent, [EOS_TOKEN, SOS_TOKEN])
