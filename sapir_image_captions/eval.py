@@ -25,8 +25,8 @@ if __name__ == '__main__':
                         help="Directory containing model_best.pth.tar.")
     parser.add_argument("data_dir", type=str,
                         help="Directory containing test data.")
-    parser.add_argument("--batch-size", type=int, default=64,
-                        help="Batch size [Default: 64].")
+    parser.add_argument("--batch-size", type=int, default=32,
+                        help="Batch size [Default: 32].")
     parser.add_argument("--create-losses-plot", action='store_true',
                         default=True,
                         help="Create losses plot [Default: True]")
@@ -39,7 +39,7 @@ if __name__ == '__main__':
                               if args.cuda and torch.cuda.is_available() \
                               else 'cpu')
 
-    encoder, decoder, train_vocab, checkpoint = load_checkpoint(args.model_dir)
+    encoder, decoder, train_vocab, checkpoint = load_checkpoint(args.model_dir, args.cuda)
     hyper_params = vars(checkpoint['cmd_line_args'])
 
     test_dataset = \
@@ -80,13 +80,14 @@ if __name__ == '__main__':
             [run_preprocess(sent) \
              for sent in tensor2text(recon_scores, train_vocab)])
         # Note (BP): Wrap in
-        all_gold_captions.append(
-            [run_preprocess(sent) \
+        all_gold_captions.extend(
+            [[run_preprocess(sent)] \
              for sent in  tensor2text(captions_sorted, test_vocab)])
-
+        pbar.update()
+    pbar.close();
     # Bleu score
-    bleu_score = corpus_bleu(all_recon_captions, all_gold_captions)
-
+    bleu_score = corpus_bleu(all_gold_captions, all_recon_captions)
+    logging.info("Corpus bleu:\t{}".format(round(bleu_score, 4)))
 
     # Attention plot
 

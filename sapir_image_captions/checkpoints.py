@@ -71,4 +71,6 @@ def load_checkpoint(dir_path, use_cuda=False):
                              dropout_rate=args['dropout_rate'], device=device)
     encoder.load_state_dict(checkpoint['encoder_state_dict'])
     decoder.load_state_dict(checkpoint['decoder_state_dict'])
+    encoder.to(device)
+    decoder.to(device)
     return encoder, decoder, vocab, checkpoint
