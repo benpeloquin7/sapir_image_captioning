@@ -214,10 +214,10 @@ class CaptionDecoder(nn.Module):
         # Init LSTM state (batch_size, decoder_dim)
         h, c = self.init_hidden_state(encoder_out)
 
-        # We don't decode the last <end> token, since we've finished
-        # generating as soon as we generate <end>. So decoding lenghts
-        # are lenghts - 1
-        decode_lengths = (captions_lengths - 1).tolist()
+        # Save decode (original lengths)
+        # Todo (BP): Note that decode lengths does not include <SOS> or <EOS>
+        # this might not be appropritate
+        decode_lengths = captions_lengths.tolist()
 
         # Create tensors to hold word prediction scores and alphas
         predictions = \
