@@ -7,7 +7,10 @@ here: https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Image-Captioning/blob/ma
 
 import torch
 from torch import nn
+import torch.nn.functional as F
 import torchvision
+from sapir_image_captions import SOS_TOKEN, EOS_TOKEN
+
 
 
 class ImageEncoder(nn.Module):
@@ -252,3 +255,128 @@ class CaptionDecoder(nn.Module):
             alphas[:batch_size_t, t, :] = alpha
 
         return predictions, encoded_captions, decode_lengths, alphas, sort_idxs
+
+
+def beam_search_caption_generation(image, encoder, decoder, vocab,
+                                   device, k=5):
+    """Caption generation with beam search.
+
+    Parameters
+    ----------
+    image: torch.Tensor (1, 3, h, w)
+        Image.
+    encoder: torch.nn.Module
+        Image encoder.
+    decoder: torch.nn.Module
+        Caption decoder.
+    vocab: torchtext.Vocab
+        Vocabulary object.
+    device: torch.device
+        Device to run.
+    k: int
+        Beam size.
+
+    Returns
+    -------
+    tuple (torch.tensor, torch.tensor)
+        Tuple of character and alphas sequences.
+
+    """
+
+    encoder_out = encoder(image)
+    encoded_img_size = encoder_out.size(1)
+    encoder_dim = encoder_out.size(3)
+    # Flatten encoding
+    # (1, num_pixels, encoder_dim)
+    encoder_out = encoder_out.view(1, -1, encoder_dim)
+    num_pixels = encoder_out.size(1)
+    # We'll treat the problem as having a batch size of k
+    # (k, num_pixels, encoder_dim)
+    encoder_out = encoder_out.expand(k, num_pixels, encoder_dim)
+    k_prev_words = \
+        torch.LongTensor([[vocab.stoi[SOS_TOKEN]]] * k).to(device)  # (k, 1)
+    seqs = k_prev_words
+    top_k_scores = torch.zeros(k, 1).to(device)
+    seqs_alpha = \
+        torch.ones(k, 1, encoded_img_size, encoded_img_size).to(device)
+    complete_seqs = list()
+    complete_seqs_alpha = list()
+    complete_seqs_scores = list()
+
+    step = 1
+    h, c = decoder.init_hidden_state(encoder_out)
+
+    while True:
+        # (s, embed_dim)
+        embeddings = decoder.embedding(k_prev_words).squeeze(1)
+        # (s, encoder_dim), (s, num_pixels)
+        awe, alpha = decoder.attention(encoder_out, h)
+        # (s, enc_image_size, enc_image_size)
+        alpha = alpha.view(-1, encoded_img_size, encoded_img_size)
+        # gating scalar, (s, encoder_dim)
+        gate = decoder.sigmoid(decoder.f_beta(h))
+        awe = gate * awe
+        # (s, decoder_dim)
+        h, c = decoder.decode_step(torch.cat([embeddings, awe], dim=1), (h, c))
+        scores = decoder.fc(h)  # (s, vocab_size)
+        scores = F.log_softmax(scores, dim=1)
+        scores = top_k_scores.expand_as(scores) + scores  # (s, vocab_size)
+        if step == 1:
+            top_k_scores, top_k_words = scores[0].topk(k, 0, True, True)
+        else:
+            # Unroll and find top scores, and their unrolled indices
+            top_k_scores, top_k_words = scores.view(-1).topk(k, 0, True, True)
+
+        # Convert unrolled indices to actual indices of scores
+        prev_word_inds = top_k_words / len(vocab)
+        next_word_inds = top_k_words % len(vocab)
+
+        # Add new words to sequences, alphas
+        # (s, step+1)
+        seqs = torch.cat([seqs[prev_word_inds],
+                          next_word_inds.unsqueeze(1)], dim=1)
+        # (s, step+1, enc_image_size, enc_image_size)
+        seqs_alpha = \
+            torch.cat([seqs_alpha[prev_word_inds],
+                       alpha[prev_word_inds].unsqueeze(1)], dim=1)
+
+        # Which sequences are incomplete (didn't reach <end>)?
+        incomplete_inds = \
+            [ind for ind, next_word in enumerate(next_word_inds) \
+             if next_word != vocab.stoi[EOS_TOKEN]]
+        complete_inds = list(
+            set(range(len(next_word_inds))) - set(incomplete_inds))
+
+        # Set aside complete sequences
+        if len(complete_inds) > 0:
+            complete_seqs.extend(seqs[complete_inds].tolist())
+            complete_seqs_alpha.extend(seqs_alpha[complete_inds].tolist())
+            complete_seqs_scores.extend(top_k_scores[complete_inds])
+        k -= len(complete_inds)  # reduce beam length accordingly
+
+        # Proceed with incomplete sequences
+        if k == 0:
+            import pdb;
+            pdb.set_trace();
+            break
+        seqs = seqs[incomplete_inds]
+        seqs_alpha = seqs_alpha[incomplete_inds]
+        h = h[prev_word_inds[incomplete_inds]]
+        c = c[prev_word_inds[incomplete_inds]]
+        encoder_out = encoder_out[prev_word_inds[incomplete_inds]]
+        top_k_scores = top_k_scores[incomplete_inds].unsqueeze(1)
+        k_prev_words = next_word_inds[incomplete_inds].unsqueeze(1)
+
+        # Break if things have been going on too long
+        if step > 50:
+            import pdb;
+            pdb.set_trace();
+            break
+        step += 1
+
+
+    i = complete_seqs_scores.index(max(complete_seqs_scores))
+    seq = complete_seqs[i]
+    alphas = complete_seqs_alpha[i]
+
+    return seq, alphas
