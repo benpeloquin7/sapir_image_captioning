@@ -96,6 +96,7 @@ if __name__ == '__main__':
 
     # Run mode
     if args.debug:
+
         args.n_epochs = 10
         args.encoded_img_size = 32
         args.attention_dim = 32
@@ -105,6 +106,10 @@ if __name__ == '__main__':
         args.max_seq_len = 15
         args.max_size = 1000
         args.image_size = 128
+        debug_params = args.n_epochs, args.encoded_img_size, \
+                       args.attention_dim, args.embedding_dim, \
+                       args.decoder_dim, args.dropout_rate, args.max_seq_len, \
+                       args.image_size, args.max_size
         logging.info("""Running in debug mode with params:
         n_epochs {}
         encoded_image_size {}
@@ -115,9 +120,7 @@ if __name__ == '__main__':
         max_seq_len {}
         image_size {}
         max_size {}
-        """.format(args.n_epochs, args.encoded_img_size, args.attention_dim,
-                   args.embedding_dim, args.decoder_dim, args.dropout_rate,
-                   args.max_seq_len, args.image_size, args.max_size))
+        """.format(*debug_params))
 
     # Data
     train_dataset = \
