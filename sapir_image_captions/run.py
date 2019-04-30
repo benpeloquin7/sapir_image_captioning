@@ -103,7 +103,7 @@ if __name__ == '__main__':
         args.embedding_dim = 16
         args.decoder_dim = 16
         args.dropout_rate = 0.
-        args.max_seq_len = 15
+        args.max_seq_len = 10
         args.max_size = 1000
         args.image_size = 128
         debug_params = args.n_epochs, args.encoded_img_size, \
@@ -153,7 +153,7 @@ if __name__ == '__main__':
     # Models
     encoder = ImageEncoder(args.encoded_img_size)
     decoder = CaptionDecoder(args.attention_dim, args.embedding_dim,
-                             args.decoder_dim, len(train_vocab),
+                             args.decoder_dim, train_vocab,
                              dropout_rate=args.dropout_rate, device=device)
     encoder = encoder.to(device)
     decoder = decoder.to(device)
@@ -192,13 +192,16 @@ if __name__ == '__main__':
             encoded_imgs = encoder(X_images)
             scores, captions_sorted, decode_lens, alphas, sort_idxs = \
                 decoder(encoded_imgs, X_captions, caption_lengths)
-            targets = captions_sorted
 
+            # Since we decode starting with SOS_TOKEN the targets are all words
+            # after SOS_TOKEN up to EOS_TOKEN
+            targets = captions_sorted[:, 1:]
             scores_copy = scores.clone()
             scores, _ = \
                 pack_padded_sequence(scores, decode_lens, batch_first=True)
             targets, _ = \
                 pack_padded_sequence(targets, decode_lens, batch_first=True)
+
             loss_ = loss(scores, targets)
             # "Doubly stochastic attention regularization" from paper
             loss_ += args.alpha_c * ((1. - alphas.sum(dim=1))**2).mean()
@@ -241,7 +244,7 @@ if __name__ == '__main__':
                 encoded_imgs = encoder(X_images)
                 scores, captions_sorted, decode_lens, alphas, sort_idxs = \
                     decoder(encoded_imgs, X_captions, caption_lengths)
-                targets = captions_sorted
+                targets = captions_sorted[:, 1:]
 
                 scores_copy = scores.clone()
                 scores, _ = \
@@ -302,7 +305,7 @@ if __name__ == '__main__':
                 encoded_imgs = encoder(X_images)
                 scores, captions_sorted, decode_lens, alphas, sort_idxs = \
                     decoder(encoded_imgs, X_captions, caption_lengths)
-                targets = captions_sorted
+                targets = captions_sorted[:, 1:]
 
                 scores_copy = scores.clone()
                 scores, _ = \
