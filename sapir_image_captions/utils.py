@@ -58,7 +58,7 @@ def text2tensor(text, vocab, max_seq_length=30, device='cpu'):
     original_len = min(len(text)+2, max_seq_length)
     # Add SOS and EOS
     text = [SOS_IDX] + [vocab.stoi.get(ch, UNK_IDX) for ch in text]
-    text = text[:max_seq_length - 2] + [EOS_IDX]  # Subtract two for EOS and SOS
+    text = text[:max_seq_length - 1] + [EOS_IDX]
     # Padding
     text = text + [PAD_IDX] * (max_seq_length - len(text))
     return torch.LongTensor(text, device=device), original_len

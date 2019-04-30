@@ -224,8 +224,9 @@ class CaptionDecoder(nn.Module):
 
         # Create tensors to hold word prediction scores and alphas
         # Initialize with PAD_IDX
+        pad_idx = self.vocab.stoi[PAD_TOKEN]
         predictions = \
-            torch.tensor([self.vocab.stoi[PAD_TOKEN]], dtype=torch.float32) \
+            torch.tensor([pad_idx], dtype=torch.float32) \
                 .repeat((batch_size, max(decode_lengths), self.vocab_size)) \
                 .to(self.device)
         alphas = \
