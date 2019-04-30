@@ -137,9 +137,7 @@ class CaptionTask2Dataset(Dataset):
                         self.max_seq_len)
 
         return {'image': img, 'text': caption,
-                # Note (BP): If original caption length is longer than
-                # max then we cut it off here too.
-                'text_len': min(original_caption_len, self.max_seq_len)}
+                'text_len': original_caption_len}
 
     def __len__(self):
         return len(self.captions)

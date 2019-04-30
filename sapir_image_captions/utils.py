@@ -39,8 +39,8 @@ def text2tensor(text, vocab, max_seq_length=30, device='cpu'):
         List of tuples of strs
     vocab: torchtext.data.Vocab object
         Vocab contains itos and stoi.
-    max_seq_length: int [Default: 50]
-        Max number of tokens.
+    max_seq_length: int [Default: 30]
+        Max number of tokens not including SOS and EOS.
     device: str [Default: 'cpu']
         torch.device string. One of cpu/cuda.
 
@@ -53,9 +53,13 @@ def text2tensor(text, vocab, max_seq_length=30, device='cpu'):
     UNK_IDX, SOS_IDX, EOS_IDX, PAD_IDX = \
         map(lambda x: vocab.stoi[x],
             [UNK_TOKEN, SOS_TOKEN, EOS_TOKEN, PAD_TOKEN])
-    original_len = len(text)
+    # Set length to original + 2 (EOS and SOS) or max if original is larger
+    # than max
+    original_len = min(len(text)+2, max_seq_length)
+    # Add SOS and EOS
     text = [SOS_IDX] + [vocab.stoi.get(ch, UNK_IDX) for ch in text]
-    text = text[:max_seq_length - 1] + [EOS_IDX]
+    text = text[:max_seq_length - 2] + [EOS_IDX]  # Subtract two for EOS and SOS
+    # Padding
     text = text + [PAD_IDX] * (max_seq_length - len(text))
     return torch.LongTensor(text, device=device), original_len
 
@@ -71,6 +75,7 @@ def tensor2text(data, vocab):
         Vocab contains itos and stoi.
 
     Returns
+    -------
     list[list[str]]
         List of tokenized captions.
 
@@ -83,7 +88,8 @@ def tensor2text(data, vocab):
 
 def clip_gradient(optimizer, grad_clip):
     """
-    Clips gradients computed during backpropagation to avoid explosion of gradients.
+    Clips gradients computed during backpropagation to avoid
+    explosion of gradients.
 
     Parameters
     -----------

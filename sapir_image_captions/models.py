@@ -9,7 +9,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 import torchvision
-from sapir_image_captions import SOS_TOKEN, EOS_TOKEN
+from sapir_image_captions import SOS_TOKEN, EOS_TOKEN, PAD_TOKEN
 
 
 
@@ -121,14 +121,15 @@ class CaptionDecoder(nn.Module):
         Dropout rate.
     """
 
-    def __init__(self, attention_dim, embedding_dim, decoder_dim, vocab_size,
+    def __init__(self, attention_dim, embedding_dim, decoder_dim, vocab,
                  encoder_dim=2048, dropout_rate=0.5,
                  device=torch.device('cpu')):
         super(CaptionDecoder, self).__init__()
         self.attention_dim = attention_dim
         self.embedding_dim = embedding_dim
         self.decoder_dim = decoder_dim
-        self.vocab_size = vocab_size
+        self.vocab = vocab
+        self.vocab_size = len(vocab)
         self.encoder_dim = encoder_dim
         self.dropout_rate = dropout_rate
         self.device = device
@@ -217,15 +218,15 @@ class CaptionDecoder(nn.Module):
         # Init LSTM state (batch_size, decoder_dim)
         h, c = self.init_hidden_state(encoder_out)
 
-        # Save decode (original lengths)
-        # Todo (BP): Note that decode lengths does not include <SOS> or <EOS>
-        # this might not be appropritate
-        decode_lengths = captions_lengths.tolist()
+        # Subtract one here since we've finished generating as soon
+        # as we generate EOS_TOKEN
+        decode_lengths = (captions_lengths-1).tolist()
 
         # Create tensors to hold word prediction scores and alphas
-        predictions = \
-            torch.zeros(batch_size, max(decode_lengths), self.vocab_size) \
-                .to(self.device)
+        # Initialize with PAD_IDX
+        predictions = torch.tensor([self.vocab.stoi[PAD_TOKEN]]) \
+            .repeat((batch_size, max(decode_lengths), self.vocab_size)) \
+            .to(self.device)
         alphas = \
             torch.zeros(batch_size, max(decode_lengths), num_pixels) \
                 .to(self.device)
@@ -253,13 +254,12 @@ class CaptionDecoder(nn.Module):
             preds = self.fc(self.dropout(h))  # (batch_size, vocab_size)
             predictions[:batch_size_t, t, :] = preds
             alphas[:batch_size_t, t, :] = alpha
-
         return predictions, encoded_captions, decode_lengths, alphas, sort_idxs
 
 
 def beam_search_caption_generation(image, encoder, decoder, vocab,
-                                   device, k=5):
-    """Caption generation with beam search.
+                                   device, k=5, max_length=30):
+    """Caption generation for a single image with beam search.
 
     Parameters
     ----------
@@ -344,8 +344,8 @@ def beam_search_caption_generation(image, encoder, decoder, vocab,
         incomplete_inds = \
             [ind for ind, next_word in enumerate(next_word_inds) \
              if next_word != vocab.stoi[EOS_TOKEN]]
-        complete_inds = list(
-            set(range(len(next_word_inds))) - set(incomplete_inds))
+        complete_inds = \
+            list(set(range(len(next_word_inds))) - set(incomplete_inds))
 
         # Set aside complete sequences
         if len(complete_inds) > 0:
@@ -368,7 +368,7 @@ def beam_search_caption_generation(image, encoder, decoder, vocab,
         k_prev_words = next_word_inds[incomplete_inds].unsqueeze(1)
 
         # Break if things have been going on too long
-        if step > 50:
+        if step > max_length:
             import pdb;
             pdb.set_trace();
             break
