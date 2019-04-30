@@ -40,7 +40,7 @@ def text2tensor(text, vocab, max_seq_length=30, device='cpu'):
     vocab: torchtext.data.Vocab object
         Vocab contains itos and stoi.
     max_seq_length: int [Default: 30]
-        Max number of tokens not including SOS and EOS.
+        Max number of tokens (including SOS and EOS).
     device: str [Default: 'cpu']
         torch.device string. One of cpu/cuda.
 
