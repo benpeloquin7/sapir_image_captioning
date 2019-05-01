@@ -194,6 +194,11 @@ if __name__ == '__main__':
             scores, captions_sorted, decode_lens, alphas, sort_idxs = \
                 decoder(encoded_imgs, X_captions, caption_lengths)
 
+            beam_seq, beam_alphas = beam_search_caption_generation(X_images[0, :].unsqueeze(0), encoder, decoder, train_vocab, device)
+            beam_captions_path = \
+                        os.path.join(args.out_dir,
+                                     "epoch-{}-beam.txt".format(epoch))
+            save_caption(torch.LongTensor(beam_seq).unsqueeze(0), train_vocab, beam_captions_path)
             # Since we decode starting with SOS_TOKEN the targets are all words
             # after SOS_TOKEN up to EOS_TOKEN
             targets = captions_sorted[:, 1:]
@@ -224,9 +229,6 @@ if __name__ == '__main__':
             decoder_optimizer.step()
             if encoder_optimizer is not None:
                 encoder_optimizer.step()
-            import pdb;
-
-            pdb.set_trace();
             pbar.update()
         pbar.close()
 

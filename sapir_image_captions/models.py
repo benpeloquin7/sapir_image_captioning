@@ -307,7 +307,6 @@ def beam_search_caption_generation(image, encoder, decoder, vocab,
 
     step = 1
     h, c = decoder.init_hidden_state(encoder_out)
-
     while True:
         # (s, embed_dim)
         embeddings = decoder.embedding(k_prev_words).squeeze(1)
@@ -372,6 +371,10 @@ def beam_search_caption_generation(image, encoder, decoder, vocab,
             break
         step += 1
 
+    if complete_seqs_scores == []:
+        complete_seqs.extend([seqs[0].tolist()])
+        complete_seqs_alpha.extend(seqs_alpha[0].tolist())
+        complete_seqs_scores.extend(top_k_scores[0])
     i = complete_seqs_scores.index(max(complete_seqs_scores))
     seq = complete_seqs[i]
     alphas = complete_seqs_alpha[i]
