@@ -280,8 +280,8 @@ def batch_beam_search_caption_generation(images, encoder, decoder, vocab,
             image, encoder, decoder, vocab, device, k, max_length)
         caption_idxs = torch.LongTensor(caption_idxs).unsqueeze(0)
         caption_words = tensor2text(caption_idxs, vocab)
-        captions.append(caption_words)
-        alphas.append(alpha)
+        captions.extend(caption_words)
+        alphas.extend(alpha)
     return captions, alphas
 
 

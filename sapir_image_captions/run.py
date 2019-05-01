@@ -21,6 +21,7 @@ from torch import nn
 from torch.nn.utils.rnn import pack_padded_sequence
 from torchvision.utils import save_image
 
+from sapir_image_captions import SOS_TOKEN, EOS_TOKEN, PAD_TOKEN
 from sapir_image_captions.checkpoints import save_checkpoint
 from sapir_image_captions.models import CaptionDecoder, ImageEncoder, \
     beam_search_caption_generation, batch_beam_search_caption_generation
@@ -197,17 +198,6 @@ if __name__ == '__main__':
             scores, captions_sorted, decode_lens, alphas, sort_idxs = \
                 decoder(encoded_imgs, X_captions, caption_lengths)
 
-            if batch_idx == 0:
-                beam_seq, beam_alphas = \
-                    beam_search_caption_generation(
-                        X_images[0, :].unsqueeze(0), encoder, decoder,
-                        train_vocab, device)
-                beam_captions_path = \
-                    os.path.join(args.out_dir,
-                                 "epoch-{}-beam.txt".format(epoch))
-                save_caption(torch.LongTensor(beam_seq).unsqueeze(0),
-                             train_vocab, beam_captions_path)
-
             # Since we decode starting with SOS_TOKEN the targets are all words
             # after SOS_TOKEN up to EOS_TOKEN
             targets = captions_sorted[:, 1:]
@@ -301,13 +291,15 @@ if __name__ == '__main__':
                     beam_captions, beam_alphas = \
                         batch_beam_search_caption_generation(
                             X_images[sort_idxs, :], encoder, decoder,
-                            train_vocab, args.beam_size, args.max_seq_len)
+                            train_vocab, device, args.beam_size, args.max_seq_len)
                     save_caption(beam_captions, None, beam_captions_path,
                                  preprocess=remove_eos_sos, is_words=True)
                     gold_caption_words = tensor2text(gold_captions, train_vocab)
-                    import pdb; pdb.set_trace();
-                    bleu_score = corpus_bleu(gold_caption_words,
-                                             beam_captions)
+                    preprocess = lambda words: [x for x in words if x not in [SOS_TOKEN, EOS_TOKEN, PAD_TOKEN]]
+                    gold_caption_words = [[preprocess(caption)] for caption in gold_caption_words]
+                    beam_captions = [preprocess(caption) for caption in beam_captions]
+                    bleu_score = corpus_bleu(gold_caption_words, beam_captions)
+                    #logging.info("Sample bleu:\t{}".format(round(bleu_score, 4)))
 
                 loss_ = loss(scores, targets)
                 # "Doubly stochastic attention regularization" from paper
@@ -349,11 +341,12 @@ if __name__ == '__main__':
                 pbar.update()
             pbar.close()
 
-        logging.info("Epoch {}\n train/val/test loss: {}/{}/{}".format(
+        logging.info("Epoch {}\n train/val/test/bleu loss: {}/{}/{}/{}".format(
             epoch,
             round(train_loss_meter.avg, 3),
             round(val_loss_meter.avg, 3),
-            round(test_loss_meter.avg, 3)))
+            round(test_loss_meter.avg, 3),
+            round(bleu_score, 4)))
 
         # Log losses
         losses[epoch, 0] = train_loss_meter.avg
