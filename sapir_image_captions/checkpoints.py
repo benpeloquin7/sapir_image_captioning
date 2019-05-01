@@ -67,7 +67,7 @@ def load_checkpoint(dir_path, use_cuda=False):
 
     encoder = ImageEncoder(args['encoded_img_size'])
     decoder = CaptionDecoder(args['attention_dim'], args['embedding_dim'],
-                             args['decoder_dim'], len(vocab),
+                             args['decoder_dim'], vocab,
                              dropout_rate=args['dropout_rate'], device=device)
     encoder.load_state_dict(checkpoint['encoder_state_dict'])
     decoder.load_state_dict(checkpoint['decoder_state_dict'])
