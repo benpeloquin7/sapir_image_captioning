@@ -117,8 +117,12 @@ def images2grid(image_batch):
     return grid_img
 
 
-def save_caption(caption_batch, vocab, f_path, preprocess=lambda x: x):
-    captions = tensor2text(caption_batch, vocab)
+def save_caption(caption_batch, vocab, f_path, preprocess=lambda x: x,
+                 is_words=False):
+    if not is_words:
+        captions = tensor2text(caption_batch, vocab)
+    else:
+        captions = caption_batch
     with open(f_path, 'w') as fp:
         for caption in captions:
             fp.write("{}\n".format(" ".join(preprocess(caption))))

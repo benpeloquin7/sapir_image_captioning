@@ -10,13 +10,16 @@ import seaborn as sns
 import torch
 import tqdm
 
+from sapir_image_captions import GLOBAL_TOKENS, SOS_TOKEN, EOS_TOKEN, PAD_TOKEN
 from sapir_image_captions.checkpoints import load_checkpoint
-from sapir_image_captions.multi_30k.dataset import CaptionTask2Dataset, \
-    SOS_TOKEN, EOS_TOKEN, PAD_TOKEN
+from sapir_image_captions.multi_30k.dataset import CaptionTask2Dataset
 from sapir_image_captions.utils import tensor2text, remove_tokens
-from sapir_image_captions.models import beam_search_caption_generation
+from sapir_image_captions.models import beam_search_caption_generation, \
+    batch_beam_search_caption_generation
 
 logging.getLogger().setLevel(logging.INFO)
+
+
 
 if __name__ == '__main__':
     import argparse
@@ -70,6 +73,13 @@ if __name__ == '__main__':
         first_image_caption, first_image_alphas = \
             beam_search_caption_generation(first_image, encoder, decoder,
                                            train_vocab, device)
+
+        captions, alphas = \
+            batch_beam_search_caption_generation(X_images, encoder, decoder,
+                                                 train_vocab, device)
+
+        last_first_image = first_image
+        last_first_image_caption = first_image_caption
         encoded_imgs = encoder(X_images)
         scores, captions_sorted, decode_lens, alphas, sort_idxs = \
             decoder(encoded_imgs, X_captions, caption_lengths)

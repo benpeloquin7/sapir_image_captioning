@@ -10,7 +10,7 @@ from torch import nn
 import torch.nn.functional as F
 import torchvision
 from sapir_image_captions import SOS_TOKEN, EOS_TOKEN, PAD_TOKEN
-
+from sapir_image_captions.utils import tensor2text
 
 
 class ImageEncoder(nn.Module):
@@ -259,6 +259,32 @@ class CaptionDecoder(nn.Module):
         return predictions, encoded_captions, decode_lengths, alphas, sort_idxs
 
 
+def batch_beam_search_caption_generation(images, encoder, decoder, vocab,
+                                         device, k=5, max_length=30):
+    """Run beam search on batch.
+
+    Parameters
+    ----------
+    See beam_search_caption_generation(...)
+
+    Returns
+    -------
+    list[list[str]]
+        Captions list.
+
+    """
+    captions = []
+    alphas = []
+    for image in torch.split(images, 1, dim=0):
+        caption_idxs, alpha = beam_search_caption_generation(
+            image, encoder, decoder, vocab, device, k, max_length)
+        caption_idxs = torch.LongTensor(caption_idxs).unsqueeze(0)
+        caption_words = tensor2text(caption_idxs, vocab)
+        captions.append(caption_words)
+        alphas.append(alpha)
+    return captions, alphas
+
+
 def beam_search_caption_generation(image, encoder, decoder, vocab,
                                    device, k=5, max_length=30):
     """Caption generation for a single image with beam search.
@@ -275,8 +301,10 @@ def beam_search_caption_generation(image, encoder, decoder, vocab,
         Vocabulary object.
     device: torch.device
         Device to run.
-    k: int
+    k: int [Default: 5]
         Beam size.
+    max_length: int [Default: 30].
+        End beam search at this length.
 
     Returns
     -------

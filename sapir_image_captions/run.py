@@ -9,6 +9,7 @@ Assume dir structure for Multi30k data
 """
 
 import logging
+from nltk.translate.bleu_score import corpus_bleu
 import numpy as np
 import os
 import pandas as pd
@@ -22,10 +23,10 @@ from torchvision.utils import save_image
 
 from sapir_image_captions.checkpoints import save_checkpoint
 from sapir_image_captions.models import CaptionDecoder, ImageEncoder, \
-    beam_search_caption_generation
+    beam_search_caption_generation, batch_beam_search_caption_generation
 from sapir_image_captions.multi_30k.dataset import CaptionTask2Dataset
 from sapir_image_captions.utils import AverageMeter, clip_gradient, \
-    make_safe_dir, remove_eos_sos, save_caption
+    make_safe_dir, remove_eos_sos, save_caption, tensor2text
 
 logging.getLogger().setLevel(logging.INFO)
 
@@ -71,6 +72,8 @@ if __name__ == '__main__':
     parser.add_argument("--alpha-c", type=float, default=5.,
                         help="Regularization parameter for "
                              "'doubly stochastic attention' [Default: 1.]")
+    parser.add_argument("--beam-size", type=int, default=5,
+                        help="Beam size [Default: 5].")
     # Data params
     parser.add_argument("--max-size", type=int, default=None,
                         help="Maximium number of examples [Default: None].")
@@ -264,7 +267,7 @@ if __name__ == '__main__':
                 targets, _ = \
                     pack_padded_sequence(targets, decode_lens, batch_first=True)
 
-                # Cache samples
+                # Cache samples on first batch
                 if batch_idx == 0:
                     logging.info(
                         "Caching samples for epoch {}...".format(epoch))
@@ -292,6 +295,19 @@ if __name__ == '__main__':
                     save_caption(recon_scores, train_vocab,
                                  recon_captions_path,
                                  preprocess=remove_eos_sos)
+                    beam_captions_path = \
+                        os.path.join(args.out_dir,
+                                     "epoch-{}-beam.txt".format(epoch))
+                    beam_captions, beam_alphas = \
+                        batch_beam_search_caption_generation(
+                            X_images[sort_idxs, :], encoder, decoder,
+                            train_vocab, args.beam_size, args.max_seq_len)
+                    save_caption(beam_captions, None, beam_captions_path,
+                                 preprocess=remove_eos_sos, is_words=True)
+                    gold_caption_words = tensor2text(gold_captions, train_vocab)
+                    import pdb; pdb.set_trace();
+                    bleu_score = corpus_bleu(gold_caption_words,
+                                             beam_captions)
 
                 loss_ = loss(scores, targets)
                 # "Doubly stochastic attention regularization" from paper

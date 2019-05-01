@@ -2,3 +2,4 @@ SOS_TOKEN = "<sos>"
 EOS_TOKEN = "<eos>"
 UNK_TOKEN = "<unk>"
 PAD_TOKEN = "<pad>"
+GLOBAL_TOKENS = [SOS_TOKEN, EOS_TOKEN, UNK_TOKEN, PAD_TOKEN]
