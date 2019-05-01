@@ -358,8 +358,6 @@ def beam_search_caption_generation(image, encoder, decoder, vocab,
 
         # Proceed with incomplete sequences
         if k == 0:
-            import pdb;
-            pdb.set_trace();
             break
         seqs = seqs[incomplete_inds]
         seqs_alpha = seqs_alpha[incomplete_inds]
@@ -371,11 +369,8 @@ def beam_search_caption_generation(image, encoder, decoder, vocab,
 
         # Break if things have been going on too long
         if step > max_length:
-            import pdb;
-            pdb.set_trace();
             break
         step += 1
-
 
     i = complete_seqs_scores.index(max(complete_seqs_scores))
     seq = complete_seqs[i]

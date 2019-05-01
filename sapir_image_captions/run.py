@@ -21,7 +21,8 @@ from torch.nn.utils.rnn import pack_padded_sequence
 from torchvision.utils import save_image
 
 from sapir_image_captions.checkpoints import save_checkpoint
-from sapir_image_captions.models import CaptionDecoder, ImageEncoder
+from sapir_image_captions.models import CaptionDecoder, ImageEncoder, \
+    beam_search_caption_generation
 from sapir_image_captions.multi_30k.dataset import CaptionTask2Dataset
 from sapir_image_captions.utils import AverageMeter, clip_gradient, \
     make_safe_dir, remove_eos_sos, save_caption
@@ -103,7 +104,7 @@ if __name__ == '__main__':
         args.embedding_dim = 16
         args.decoder_dim = 16
         args.dropout_rate = 0.
-        args.max_seq_len = 10
+        args.max_seq_len = 50
         args.max_size = 1000
         args.image_size = 128
         debug_params = args.n_epochs, args.encoded_img_size, \
@@ -223,6 +224,9 @@ if __name__ == '__main__':
             decoder_optimizer.step()
             if encoder_optimizer is not None:
                 encoder_optimizer.step()
+            import pdb;
+
+            pdb.set_trace();
             pbar.update()
         pbar.close()
 
@@ -280,6 +284,10 @@ if __name__ == '__main__':
                     save_caption(recon_scores, train_vocab,
                                  recon_captions_path,
                                  preprocess=remove_eos_sos)
+
+                    seq, alphas = beam_search_caption_generation(
+                        X_images[0, :], encoder, decoder, train_vocab)
+                    import pdb; pdb.set_trace();
 
                 loss_ = loss(scores, targets)
                 # "Doubly stochastic attention regularization" from paper
