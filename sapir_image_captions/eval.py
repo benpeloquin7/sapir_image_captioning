@@ -19,8 +19,6 @@ from sapir_image_captions.models import beam_search_caption_generation, \
 
 logging.getLogger().setLevel(logging.INFO)
 
-
-
 if __name__ == '__main__':
     import argparse
 

@@ -295,8 +295,12 @@ if __name__ == '__main__':
                     save_caption(beam_captions, None, beam_captions_path,
                                  preprocess=remove_eos_sos, is_words=True)
                     gold_caption_words = tensor2text(gold_captions, train_vocab)
-                    preprocess = lambda words: [x for x in words if x not in [SOS_TOKEN, EOS_TOKEN, PAD_TOKEN]]
-                    gold_caption_words = [[preprocess(caption)] for caption in gold_caption_words]
+                    preprocess = \
+                        lambda words: [x for x in words if x not in
+                                       [SOS_TOKEN, EOS_TOKEN, PAD_TOKEN]]
+                    gold_caption_words = \
+                        [[preprocess(caption)]
+                         for caption in gold_caption_words]
                     beam_captions = [preprocess(caption) for caption in beam_captions]
                     bleu_score = corpus_bleu(gold_caption_words, beam_captions)
                     #logging.info("Sample bleu:\t{}".format(round(bleu_score, 4)))
