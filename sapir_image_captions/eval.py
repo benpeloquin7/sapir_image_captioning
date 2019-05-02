@@ -43,7 +43,8 @@ if __name__ == '__main__':
                               if args.cuda and torch.cuda.is_available() \
                               else 'cpu')
 
-    encoder, decoder, train_vocab, checkpoint = load_checkpoint(args.model_dir, args.cuda)
+    encoder, decoder, train_vocab, checkpoint = \
+        load_checkpoint(args.model_dir, args.cuda)
     hyper_params = vars(checkpoint['cmd_line_args'])
 
     test_dataset = \
