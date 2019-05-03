@@ -21,13 +21,13 @@ from torch import nn
 from torch.nn.utils.rnn import pack_padded_sequence
 from torchvision.utils import save_image
 
-from sapir_image_captions import SOS_TOKEN, EOS_TOKEN, PAD_TOKEN
+from sapir_image_captions import SOS_TOKEN, EOS_TOKEN, PAD_TOKEN, GLOBAL_TOKENS
 from sapir_image_captions.checkpoints import save_checkpoint
 from sapir_image_captions.models import CaptionDecoder, ImageEncoder, \
     beam_search_caption_generation, batch_beam_search_caption_generation
 from sapir_image_captions.multi_30k.dataset import CaptionTask2Dataset
 from sapir_image_captions.utils import AverageMeter, clip_gradient, \
-    make_safe_dir, remove_eos_sos, save_caption, tensor2text
+    make_safe_dir, remove_tokens, save_caption, tensor2text
 
 logging.getLogger().setLevel(logging.INFO)
 
@@ -259,6 +259,10 @@ if __name__ == '__main__':
 
                 # Cache samples on first batch
                 if batch_idx == 0:
+                    non_unk_constant_tokens = [SOS_TOKEN, EOS_TOKEN, PAD_TOKEN]
+                    preprocess = \
+                        lambda x: remove_tokens(x, non_unk_constant_tokens)
+
                     logging.info(
                         "Caching samples for epoch {}...".format(epoch))
                     # Images
@@ -277,33 +281,29 @@ if __name__ == '__main__':
                         os.path.join(args.out_dir,
                                      "epoch-{}-gold.txt".format(epoch))
                     save_caption(gold_captions, train_vocab,
-                                 gold_captions_path,
-                                 preprocess=remove_eos_sos)
+                                 gold_captions_path, preprocess=preprocess)
                     recon_captions_path = \
                         os.path.join(args.out_dir,
                                      "epoch-{}-recon.txt".format(epoch))
                     save_caption(recon_scores, train_vocab,
-                                 recon_captions_path,
-                                 preprocess=remove_eos_sos)
+                                 recon_captions_path, preprocess=preprocess)
                     beam_captions_path = \
                         os.path.join(args.out_dir,
                                      "epoch-{}-beam.txt".format(epoch))
                     beam_captions, beam_alphas = \
                         batch_beam_search_caption_generation(
                             X_images[sort_idxs, :], encoder, decoder,
-                            train_vocab, device, args.beam_size, args.max_seq_len)
+                            train_vocab, device, args.beam_size,
+                            args.max_seq_len)
                     save_caption(beam_captions, None, beam_captions_path,
-                                 preprocess=remove_eos_sos, is_words=True)
-                    gold_caption_words = tensor2text(gold_captions, train_vocab)
-                    preprocess = \
-                        lambda words: [x for x in words if x not in
-                                       [SOS_TOKEN, EOS_TOKEN, PAD_TOKEN]]
+                                 preprocess=preprocess, is_words=True)
+                    gold_caption_words = \
+                        tensor2text(gold_captions, train_vocab)
                     gold_caption_words = \
                         [[preprocess(caption)]
                          for caption in gold_caption_words]
                     beam_captions = [preprocess(caption) for caption in beam_captions]
                     bleu_score = corpus_bleu(gold_caption_words, beam_captions)
-                    #logging.info("Sample bleu:\t{}".format(round(bleu_score, 4)))
 
                 loss_ = loss(scores, targets)
                 # "Doubly stochastic attention regularization" from paper
