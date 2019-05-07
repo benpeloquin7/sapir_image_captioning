@@ -9,12 +9,14 @@ Assume dir structure for Multi30k data
 """
 
 import logging
+import matplotlib.pyplot as plt
 from nltk.translate.bleu_score import corpus_bleu
 import numpy as np
 import os
 import pandas as pd
 import pickle
 import tqdm
+import seaborn as sns
 
 import torch
 from torch import nn
@@ -23,7 +25,7 @@ from torchvision.utils import save_image
 
 from sapir_image_captions import SOS_TOKEN, EOS_TOKEN, PAD_TOKEN, GLOBAL_TOKENS
 from sapir_image_captions.checkpoints import save_checkpoint
-from sapir_image_captions.models import CaptionDecoder, ImageEncoder, \
+from sapir_image_captions.models import CaptionAttentionDecoder, ImageEncoder, \
     beam_search_caption_generation, batch_beam_search_caption_generation
 from sapir_image_captions.multi_30k.dataset import CaptionTask2Dataset
 from sapir_image_captions.utils import AverageMeter, clip_gradient, \
@@ -48,6 +50,9 @@ if __name__ == '__main__':
                         help="Use cuda [Default: False].")
     parser.add_argument("--debug", action='store_true', default=False,
                         help="Run model weith debug params [Default: False].")
+    parser.add_argument("--create_losses_plot", action='store_true',
+                        default=True,
+                        help="Create losses plot [Default: True].")
     parser.add_argument("--out-dir", type=str, default="./outputs",
                         help="Output directory [Default: ./outputs].")
     # Model params
@@ -157,9 +162,10 @@ if __name__ == '__main__':
 
     # Models
     encoder = ImageEncoder(args.encoded_img_size)
-    decoder = CaptionDecoder(args.attention_dim, args.embedding_dim,
-                             args.decoder_dim, train_vocab,
-                             dropout_rate=args.dropout_rate, device=device)
+    decoder = CaptionAttentionDecoder(args.attention_dim, args.embedding_dim,
+                                      args.decoder_dim, train_vocab,
+                                      dropout_rate=args.dropout_rate,
+                                      device=device)
     encoder = encoder.to(device)
     decoder = decoder.to(device)
 
@@ -176,12 +182,15 @@ if __name__ == '__main__':
     loss = nn.CrossEntropyLoss().to(device)
 
     best_loss = np.inf
-    losses = np.zeros((args.n_epochs, 3))  # track train, val, test losses
+    # track train, val, test, bleu, train_base, train_regularizer
+    losses = np.zeros((args.n_epochs, 6))
 
     logging.info("Running model...")
     for epoch in range(args.n_epochs):
 
         # Train
+        train_loss_meter_base = AverageMeter()
+        train_loss_meter_regularizer = AverageMeter()
         train_loss_meter = AverageMeter()
         encoder.train()
         decoder.train()
@@ -207,10 +216,16 @@ if __name__ == '__main__':
             targets, _ = \
                 pack_padded_sequence(targets, decode_lens, batch_first=True)
 
-            loss_ = loss(scores, targets)
+            base_loss = loss(scores, targets)
             # "Doubly stochastic attention regularization" from paper
-            loss_ += args.alpha_c * ((1. - alphas.sum(dim=1))**2).mean()
-            train_loss_meter.update(loss_.item(), batch_size)
+            stochastic_loss = \
+                args.alpha_c * ((1. - alphas.sum(dim=1)) ** 2).mean()
+
+            train_loss_meter_base = base_loss.item()
+            train_loss_meter_regularizer = stochastic_loss.item()
+            train_loss_meter.update(
+                train_loss_meter_base + train_loss_meter_regularizer,
+                batch_size)
 
             # Back prop
             decoder_optimizer.zero_grad()
@@ -233,6 +248,8 @@ if __name__ == '__main__':
 
         # Val
         with torch.no_grad():
+            val_loss_meter_base = AverageMeter()
+            val_loss_meter_regularizer = AverageMeter()
             val_loss_meter = AverageMeter()
             encoder.eval()
             decoder.eval()
@@ -305,17 +322,26 @@ if __name__ == '__main__':
                     beam_captions = [preprocess(caption) for caption in beam_captions]
                     bleu_score = corpus_bleu(gold_caption_words, beam_captions)
 
-                loss_ = loss(scores, targets)
+                base_loss = loss(scores, targets)
                 # "Doubly stochastic attention regularization" from paper
-                loss_ += args.alpha_c * ((1. - alphas.sum(dim=1)) ** 2).mean()
-                val_loss_meter.update(loss_.item(), batch_size)
+                stochastic_loss = \
+                    args.alpha_c * ((1. - alphas.sum(dim=1)) ** 2).mean()
+
+                val_loss_meter_base = base_loss.item()
+                val_loss_meter_regularizer = stochastic_loss.item()
+                val_loss_meter.update(
+                    val_loss_meter_base + val_loss_meter_regularizer,
+                    batch_size)
 
                 pbar.update()
             pbar.close()
 
         # Test
         with torch.no_grad():
+            test_loss_meter_base = AverageMeter()
+            test_loss_meter_regularizer = AverageMeter()
             test_loss_meter = AverageMeter()
+
             pbar = tqdm.tqdm(total=len(test_loader))
             for batch_idx, batch in enumerate(test_loader):
                 X_images = batch['image']
@@ -337,10 +363,16 @@ if __name__ == '__main__':
                 targets, _ = \
                     pack_padded_sequence(targets, decode_lens, batch_first=True)
 
-                loss_ = loss(scores, targets)
+                base_loss = loss(scores, targets)
                 # "Doubly stochastic attention regularization" from paper
-                loss_ += args.alpha_c * ((1. - alphas.sum(dim=1)) ** 2).mean()
-                test_loss_meter.update(loss_.item(), batch_size)
+                stochastic_loss = \
+                    args.alpha_c * ((1. - alphas.sum(dim=1)) ** 2).mean()
+
+                test_loss_meter_base = base_loss.item()
+                test_loss_meter_regularizer = stochastic_loss.item()
+                test_loss_meter.update(
+                    test_loss_meter_base + test_loss_meter_regularizer,
+                    batch_size)
 
                 pbar.update()
             pbar.close()
@@ -356,7 +388,10 @@ if __name__ == '__main__':
         losses[epoch, 0] = train_loss_meter.avg
         losses[epoch, 1] = val_loss_meter.avg
         losses[epoch, 2] = test_loss_meter.avg
-        # losses[epoch, 3] = dev_ppl  # perplexity
+        losses[epoch, 3] = bleu_score
+        losses[epoch, 4] = train_loss_meter_base.avg
+        losses[epoch, 5] = train_loss_meter_regularizer.avg
+
         is_best = val_loss_meter.avg < best_loss
         best_loss = min(val_loss_meter.avg, best_loss)
 
@@ -371,13 +406,15 @@ if __name__ == '__main__':
             'train_loss': train_loss_meter.avg,
             'dev_loss': val_loss_meter.avg,
             'test_loss': test_loss_meter.avg,
+            'train_loss_base': train_loss_meter_base.avg,
+            'train_loss_regularizer': train_loss_meter_regularizer.avg,
             'cmd_line_args': args
         }
         _checkpoint = state_params.copy()
         save_checkpoint(_checkpoint, is_best, folder=args.out_dir)
 
     # Cache losses
-    loss_typs = ['train', 'dev', 'test']
+    loss_typs = ['train', 'dev', 'test', 'bleu', 'train_base', 'train_regularizer']
     data = {
         'epochs': np.concatenate([list(range(args.n_epochs)) \
                                   for _ in
@@ -389,3 +426,10 @@ if __name__ == '__main__':
     }
     df_losses = pd.DataFrame(data)
     df_losses.to_csv(os.path.join(args.out_dir, "losses.csv"))
+
+    # Losses plot
+    if args.create_losses_plot:
+        sns.lineplot(x="epochs", y="val", hue="typ", data=df_losses)
+        losses_out_fp = os.path.join(args.out_dir, "losses.png")
+        logging.info("Saving losses plot to {}".format(losses_out_fp))
+        plt.savefig(losses_out_fp)

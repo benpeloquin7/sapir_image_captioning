@@ -102,8 +102,8 @@ class Attention(nn.Module):
         return attention_weight_encoding, alpha
 
 
-class CaptionDecoder(nn.Module):
-    """Descr here...
+class CaptionAttentionDecoder(nn.Module):
+    """Caption decoder with attention.
 
     Parameters
     ----------
@@ -124,7 +124,7 @@ class CaptionDecoder(nn.Module):
     def __init__(self, attention_dim, embedding_dim, decoder_dim, vocab,
                  encoder_dim=2048, dropout_rate=0.5,
                  device=torch.device('cpu')):
-        super(CaptionDecoder, self).__init__()
+        super(CaptionAttentionDecoder, self).__init__()
         self.attention_dim = attention_dim
         self.embedding_dim = embedding_dim
         self.decoder_dim = decoder_dim
