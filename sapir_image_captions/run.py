@@ -220,11 +220,11 @@ if __name__ == '__main__':
             # "Doubly stochastic attention regularization" from paper
             stochastic_loss = \
                 args.alpha_c * ((1. - alphas.sum(dim=1)) ** 2).mean()
+            total_loss = base_loss + stochastic_loss
 
             train_loss_meter_base = base_loss.item()
             train_loss_meter_regularizer = stochastic_loss.item()
-            total_loss = train_loss_meter_base + train_loss_meter_regularizer
-            train_loss_meter.update(total_loss, batch_size)
+            train_loss_meter.update(total_loss.item(), batch_size)
 
             # Back prop
             decoder_optimizer.zero_grad()
