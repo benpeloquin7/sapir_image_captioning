@@ -34,6 +34,8 @@ if __name__ == '__main__':
                         help="Create losses plot [Default: True]")
     parser.add_argument("--cuda", action='store_true', default=False,
                         help="Use cuda [Default: False].")
+    parser.add_argument("--beam-size", type=int, default=10,
+                        help='Beam size [Default: 10]')
 
     args = parser.parse_args()
 
@@ -75,7 +77,8 @@ if __name__ == '__main__':
 
         captions, alphas = \
             batch_beam_search_caption_generation(X_images, encoder, decoder,
-                                                 train_vocab, device)
+                                                 train_vocab, device,
+                                                 k=args.beam_size)
 
         last_first_image = first_image
         last_first_image_caption = first_image_caption
