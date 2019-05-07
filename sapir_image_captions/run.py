@@ -223,16 +223,15 @@ if __name__ == '__main__':
 
             train_loss_meter_base = base_loss.item()
             train_loss_meter_regularizer = stochastic_loss.item()
-            train_loss_meter.update(
-                train_loss_meter_base + train_loss_meter_regularizer,
-                batch_size)
+            total_loss = train_loss_meter_base + train_loss_meter_regularizer
+            train_loss_meter.update(total_loss, batch_size)
 
             # Back prop
             decoder_optimizer.zero_grad()
             if encoder_optimizer is not None:
                 encoder_optimizer.zero_grad()
 
-            loss_.backward()
+            total_loss.backward()
 
             # Gradient clipping
             if args.grad_clip is not None:
