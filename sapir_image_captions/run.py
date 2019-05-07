@@ -222,9 +222,12 @@ if __name__ == '__main__':
                 args.alpha_c * ((1. - alphas.sum(dim=1)) ** 2).mean()
             total_loss = base_loss + stochastic_loss
 
-            train_loss_meter_base = base_loss.item()
-            train_loss_meter_regularizer = stochastic_loss.item()
-            train_loss_meter.update(total_loss.item(), batch_size)
+            train_loss_meter_base.update(
+                base_loss.item(), batch_size)
+            train_loss_meter_regularizer.update(
+                stochastic_loss.item(), batch_size)
+            train_loss_meter.update(
+                total_loss.item(), batch_size)
 
             # Back prop
             decoder_optimizer.zero_grad()
