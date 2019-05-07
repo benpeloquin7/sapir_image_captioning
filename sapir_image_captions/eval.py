@@ -27,8 +27,8 @@ if __name__ == '__main__':
                         help="Directory containing model_best.pth.tar.")
     parser.add_argument("data_dir", type=str,
                         help="Directory containing test data.")
-    parser.add_argument("--batch-size", type=int, default=32,
-                        help="Batch size [Default: 32].")
+    parser.add_argument("--batch-size", type=int, default=16,
+                        help="Batch size [Default: 16].")
     parser.add_argument("--create-losses-plot", action='store_true',
                         default=True,
                         help="Create losses plot [Default: True]")

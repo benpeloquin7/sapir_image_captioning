@@ -91,11 +91,14 @@ class CaptionTask2Dataset(Dataset):
                 .squeeze() \
                 .tolist()
 
+        normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                         std=[0.229, 0.224, 0.225])
+
         self.image_transform = transforms.Compose([
             transforms.Resize((self.image_size, self.image_size)),
-            transforms.ToTensor()
+            transforms.ToTensor(),
+            normalize
         ])
-
         # Captions
         self.text_field = data.Field(sequential=True, init_token=SOS_TOKEN,
                                      pad_token=PAD_TOKEN, eos_token=EOS_TOKEN,
@@ -129,6 +132,7 @@ class CaptionTask2Dataset(Dataset):
     def __getitem__(self, item):
         # Image
         image_fp = os.path.join(self.images_store, self.image_indices[item])
+
         img = Image.open(image_fp)
         img = self.image_transform(img)
 
