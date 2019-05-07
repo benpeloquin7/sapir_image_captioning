@@ -7,7 +7,7 @@ import shutil
 
 import torch
 
-from sapir_image_captions.models import ImageEncoder, CaptionDecoder
+from sapir_image_captions.models import ImageEncoder, CaptionAttentionDecoder
 
 logging.getLogger().setLevel(logging.INFO)
 
