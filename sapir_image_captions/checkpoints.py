@@ -45,8 +45,6 @@ def load_checkpoint(dir_path, use_cuda=False):
     with open(vocab_path, 'rb') as fp:
         vocab = pickle.load(fp)
 
-
-
     checkpoint = torch.load(model_path) if use_cuda else \
         torch.load(model_path, map_location=lambda storage, location: storage)
     args = vars(checkpoint['cmd_line_args'])
@@ -62,13 +60,15 @@ def load_checkpoint(dir_path, use_cuda=False):
                checkpoint['test_loss']))
 
     device = torch.device('cuda' \
-                              if args['cuda']and torch.cuda.is_available() \
+                              if args['cuda'] and torch.cuda.is_available() \
                               else 'cpu')
 
     encoder = ImageEncoder(args['encoded_img_size'])
-    decoder = CaptionDecoder(args['attention_dim'], args['embedding_dim'],
-                             args['decoder_dim'], vocab,
-                             dropout_rate=args['dropout_rate'], device=device)
+    decoder = \
+        CaptionAttentionDecoder(args['attention_dim'], args['embedding_dim'],
+                                args['decoder_dim'], vocab,
+                                dropout_rate=args['dropout_rate'],
+                                device=device)
     encoder.load_state_dict(checkpoint['encoder_state_dict'])
     decoder.load_state_dict(checkpoint['decoder_state_dict'])
     encoder.to(device)

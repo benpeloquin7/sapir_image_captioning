@@ -45,6 +45,7 @@ class CaptionTask2Dataset(Dataset):
         self.split = split
         self.year = year
         self.caption_ext = caption_ext
+        self.versions = range(1, 6)
         self.version = version
         self.min_token_freq = min_token_freq
         self.max_seq_len = max_seq_len
@@ -53,7 +54,7 @@ class CaptionTask2Dataset(Dataset):
 
         image_indices_path = os.path.join(self.data_dir,
                                           "data/task2/image_splits")
-        captions_path = os.path.join(self.data_dir, "data/task2/tok")
+        captions_data_dir = os.path.join(self.data_dir, "data/task2/tok")
 
         if caption_ext not in ['en', 'de']:
             raise CaptionDatasetException("{} is not a valid language "
@@ -67,19 +68,20 @@ class CaptionTask2Dataset(Dataset):
             image_indices_path = \
                 os.path.join(image_indices_path,
                              "{}_{}_images.txt".format(self.split, self.year))
-            captions_path = \
-                os.path.join(captions_path,
+            captions_paths = [
+                os.path.join(captions_data_dir,
                              "{}_{}.lc.norm.tok.{}.{}".format(
-                                 self.split, self.year, self.version,
-                                 self.caption_ext))
+                                 self.split, self.year, version,
+                                 self.caption_ext)) \
+                for version in self.versions]
         elif split in ['train', 'val']:
             image_indices_path = \
                 os.path.join(image_indices_path,
                              "{}_images.txt".format(self.split))
-            captions_path = \
-                os.path.join(captions_path,
-                             "{}.lc.norm.tok.{}.{}".format(
-                                 self.split, self.version, self.caption_ext))
+            captions_paths = [
+                os.path.join(captions_data_dir, "{}.lc.norm.tok.{}.{}".format(
+                    self.split, version, self.caption_ext)) \
+                for version in self.versions]
         else:
             raise CaptionDatasetException("{} is not a valid "
                                           "split.".format(self.split))
@@ -105,14 +107,39 @@ class CaptionTask2Dataset(Dataset):
                                      unk_token=UNK_TOKEN, lower=True,
                                      include_lengths=True, batch_first=True)
         text_field_meta = [('caption', self.text_field)]
-        self.captions = \
-            data.TabularDataset(path=captions_path, format='CSV',
+        # Each version gets it's own dataset.
+        self.captions1 = \
+            data.TabularDataset(path=captions_paths[0], format='CSV',
                                 fields=text_field_meta, skip_header=False,
                                 csv_reader_params={'delimiter': '\n'})
+        self.captions2 = \
+            data.TabularDataset(path=captions_paths[1], format='CSV',
+                                fields=text_field_meta, skip_header=False,
+                                csv_reader_params={'delimiter': '\n'})
+        self.captions3 = \
+            data.TabularDataset(path=captions_paths[2], format='CSV',
+                                fields=text_field_meta, skip_header=False,
+                                csv_reader_params={'delimiter': '\n'})
+        self.captions4 = \
+            data.TabularDataset(path=captions_paths[3], format='CSV',
+                                fields=text_field_meta, skip_header=False,
+                                csv_reader_params={'delimiter': '\n'})
+        self.captions5 = \
+            data.TabularDataset(path=captions_paths[4], format='CSV',
+                                fields=text_field_meta, skip_header=False,
+                                csv_reader_params={'delimiter': '\n'})
+        self.captions_datasets = [self.captions1,
+                                  self.captions2,
+                                  self.captions3,
+                                  self.captions4,
+                                  self.captions5]
 
         if self.max_size is not None:
-            max_size_ = min(self.max_size, len(self.captions.examples))
-            self.captions.examples = self.captions.examples[: max_size_]
+            max_size_ = min(self.max_size, len(self.captions1.examples))
+            # Reduce to max size for all caption datsets
+            for caption_dataset in self.captions_datasets:
+                caption_dataset.examples = \
+                    caption_dataset.examples[: max_size_]
             self.image_indices = self.image_indices[: max_size_]
 
         if vocab is not None:
@@ -121,7 +148,7 @@ class CaptionTask2Dataset(Dataset):
             # Note (BP): We allow test sets to write new vocab so that
             # for evalauation only.
             logging.info("Building new {} vocab...".format(split))
-            self.text_field.build_vocab(self.captions,
+            self.text_field.build_vocab(self.captions_datasets[self.version-1],
                                         min_freq=self.min_token_freq)
             self.vocab = self.text_field.vocab
         else:
@@ -136,15 +163,22 @@ class CaptionTask2Dataset(Dataset):
         img = Image.open(image_fp)
         img = self.image_transform(img)
 
-        caption, original_caption_len = \
-            text2tensor(self.captions[item].caption, self.vocab,
-                        self.max_seq_len)
+        references = []
+        for i in range(len(self.captions_datasets)):
+            if i + 1 == self.version:
+                caption, original_caption_len = \
+                    text2tensor(self.captions_datasets[i][item].caption,
+                                self.vocab, self.max_seq_len)
+            # Note (BP): Important we return as string
+            # here to avoid tensor-like behavior from dataloader.
+            references.append(' '.join(self.captions_datasets[i][item].caption))
 
-        return {'image': img, 'text': caption,
-                'text_len': original_caption_len}
+        return {'image': img, 'target_version': self.version,
+                'captions': caption, 'caption_lens': original_caption_len,
+                'references': references}
 
     def __len__(self):
-        return len(self.captions)
+        return len(self.captions1)
 
 
 if __name__ == '__main__':
