@@ -211,10 +211,10 @@ if __name__ == '__main__':
             # after SOS_TOKEN up to EOS_TOKEN
             targets = captions_sorted[:, 1:]
             scores_copy = scores.clone()
-            scores, _ = \
-                pack_padded_sequence(scores, decode_lens, batch_first=True)
-            targets, _ = \
-                pack_padded_sequence(targets, decode_lens, batch_first=True)
+            scores = pack_padded_sequence(
+                scores, decode_lens, batch_first=True).data
+            targets = pack_padded_sequence(
+                targets, decode_lens, batch_first=True).datas
 
             base_loss = loss(scores, targets)
             # "Doubly stochastic attention regularization" from paper
