@@ -214,7 +214,7 @@ if __name__ == '__main__':
             scores = pack_padded_sequence(
                 scores, decode_lens, batch_first=True).data
             targets = pack_padded_sequence(
-                targets, decode_lens, batch_first=True).datas
+                targets, decode_lens, batch_first=True).data
 
             base_loss = loss(scores, targets)
             # "Doubly stochastic attention regularization" from paper
