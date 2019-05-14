@@ -273,11 +273,11 @@ if __name__ == '__main__':
                 targets = captions_sorted[:, 1:]
 
                 scores_copy = scores.clone()
-                scores, _ = \
-                    pack_padded_sequence(scores, decode_lens, batch_first=True)
-                targets, _ = \
+                scores = \
+                    pack_padded_sequence(scores, decode_lens, batch_first=True).data
+                targets = \
                     pack_padded_sequence(targets, decode_lens,
-                                         batch_first=True)
+                                         batch_first=True).data
 
                 # Cache samples on first batch
                 if batch_idx == 0:
@@ -369,10 +369,10 @@ if __name__ == '__main__':
                 targets = captions_sorted[:, 1:]
 
                 scores_copy = scores.clone()
-                scores, _ = \
-                    pack_padded_sequence(scores, decode_lens, batch_first=True)
-                targets, _ = \
-                    pack_padded_sequence(targets, decode_lens, batch_first=True)
+                scores = \
+                    pack_padded_sequence(scores, decode_lens, batch_first=True).data
+                targets = \
+                    pack_padded_sequence(targets, decode_lens, batch_first=True).data
 
                 base_loss = loss(scores, targets)
                 # "Doubly stochastic attention regularization" from paper
