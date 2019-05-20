@@ -79,6 +79,8 @@ if __name__ == '__main__':
     target_caption_lens_hold = []
     alphas_hold = []
     images_hold = []
+    lanuage_hiddens_hold = []
+    image_hiddens_hold = []
 
     with torch.no_grad():
         val_loss_meter_base = AverageMeter()
@@ -99,13 +101,19 @@ if __name__ == '__main__':
             X_captions = X_captions.to(device)
             caption_lengths = caption_lengths.to(device)
 
-            images_hold.append(X_images.numpy())
+            images_hold.append(X_images.cpu().numpy())
 
             # Run beam-search
-            recon_captions, alphas = batch_beam_search_caption_generation(
-                X_images, encoder, decoder, vocab, device,
-                hyper_params["max_seq_len"])
+            recon_captions, alphas, language_hiddens, image_hiddens = \
+                batch_beam_search_caption_generation(
+                    X_images, encoder, decoder, vocab, device,
+                    hyper_params["max_seq_len"])
 
+            lanuage_hiddens_hold.append(
+                [enc.cpu().numpy() for enc in language_hiddens])
+            image_hiddens_hold.append(
+                [enc.squeeze().cpu().contiguous().view(-1).numpy() \
+                 for enc in image_hiddens])
             curr_target_captions = []
             curr_target_caption_lens = []
             curr_recon_captions = []
@@ -153,7 +161,9 @@ if __name__ == '__main__':
         "target_caption_lens": target_caption_lens_hold,
         "recon_captions": recon_captions_hold,
         "recon_caption_lens": recon_caption_lens_hold,
-        "alphas": alphas_hold
+        "alphas": alphas_hold,
+        "language_hiddens": lanuage_hiddens_hold,
+        "image_hiddens": image_hiddens_hold
     }
 
     model_fname = "model_data_{}_{}_{}.pickle".format(
