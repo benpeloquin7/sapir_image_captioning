@@ -23,13 +23,13 @@ from torch import nn
 from torch.nn.utils.rnn import pack_padded_sequence
 from torchvision.utils import save_image
 
-from sapir_image_captions import SOS_TOKEN, EOS_TOKEN, PAD_TOKEN, GLOBAL_TOKENS
+from sapir_image_captions import SOS_TOKEN, EOS_TOKEN, PAD_TOKEN
 from sapir_image_captions.checkpoints import save_checkpoint
 from sapir_image_captions.models import CaptionAttentionDecoder, ImageEncoder, \
-    beam_search_caption_generation, batch_beam_search_caption_generation
+    batch_beam_search_caption_generation
 from sapir_image_captions.multi_30k.dataset import CaptionTask2Dataset
 from sapir_image_captions.utils import AverageMeter, clip_gradient, \
-    make_safe_dir, remove_tokens, save_caption, tensor2text
+    make_safe_dir, remove_tokens, save_caption
 
 logging.getLogger().setLevel(logging.INFO)
 
@@ -60,10 +60,10 @@ if __name__ == '__main__':
                         help="Encoded image size [Default: 14].")
     parser.add_argument("--attention-dim", type=int, default=512,
                         help="Attention dims [Default: 512].")
-    parser.add_argument("--embedding-dim", type=int, default=256,
-                        help="Embedding dims [Default: 256].")
-    parser.add_argument("--decoder-dim", type=int, default=256,
-                        help="Decoder hidden dims [Default: 256].")
+    parser.add_argument("--embedding-dim", type=int, default=512,
+                        help="Embedding dims [Default: 512].")
+    parser.add_argument("--decoder-dim", type=int, default=512,
+                        help="Decoder hidden dims [Default: 512].")
     parser.add_argument("--dropout-rate", type=float, default=0.5,
                         help="Dropout rate [Default: 0.5].")
     parser.add_argument("--fine-tune-encoder", action='store_true',
@@ -106,7 +106,6 @@ if __name__ == '__main__':
 
     # Run mode
     if args.debug:
-
         args.n_epochs = 10
         args.encoded_img_size = 32
         args.attention_dim = 32
@@ -182,7 +181,7 @@ if __name__ == '__main__':
     loss = nn.CrossEntropyLoss().to(device)
 
     best_loss = np.inf
-    # track train, val, test, bleu, train_base, train_regularizer
+    # track (train, val, test, bleu, train_base, train_regularizer)
     losses = np.zeros((args.n_epochs, 6))
 
     logging.info("Running model...")
@@ -197,8 +196,9 @@ if __name__ == '__main__':
         pbar = tqdm.tqdm(total=len(train_loader))
         for batch_idx, batch in enumerate(train_loader):
             X_images = batch['image']
-            X_captions = batch['text']
-            caption_lengths = batch['text_len']
+            target_version = batch['target_version'].unique().item()
+            X_captions = batch['captions']
+            caption_lengths = batch['caption_lens']
             batch_size = X_images.size(0)
             X_images = X_images.to(device)
             X_captions = X_captions.to(device)
@@ -211,10 +211,10 @@ if __name__ == '__main__':
             # after SOS_TOKEN up to EOS_TOKEN
             targets = captions_sorted[:, 1:]
             scores_copy = scores.clone()
-            scores, _ = \
-                pack_padded_sequence(scores, decode_lens, batch_first=True)
-            targets, _ = \
-                pack_padded_sequence(targets, decode_lens, batch_first=True)
+            scores = pack_padded_sequence(
+                scores, decode_lens, batch_first=True).data
+            targets = pack_padded_sequence(
+                targets, decode_lens, batch_first=True).data
 
             base_loss = loss(scores, targets)
             # "Doubly stochastic attention regularization" from paper
@@ -258,9 +258,11 @@ if __name__ == '__main__':
             pbar = tqdm.tqdm(total=len(val_loader))
             for batch_idx, batch in enumerate(val_loader):
                 X_images = batch['image']
-                X_captions = batch['text']
-                caption_lengths = batch['text_len']
+                target_version = batch['target_version'].unique().item()
+                X_captions = batch['captions']
+                caption_lengths = batch['caption_lens']
                 batch_size = X_images.size(0)
+
                 X_images = X_images.to(device)
                 X_captions = X_captions.to(device)
                 caption_lengths = caption_lengths.to(device)
@@ -271,13 +273,23 @@ if __name__ == '__main__':
                 targets = captions_sorted[:, 1:]
 
                 scores_copy = scores.clone()
-                scores, _ = \
-                    pack_padded_sequence(scores, decode_lens, batch_first=True)
-                targets, _ = \
-                    pack_padded_sequence(targets, decode_lens, batch_first=True)
+                scores = \
+                    pack_padded_sequence(scores, decode_lens, batch_first=True).data
+                targets = \
+                    pack_padded_sequence(targets, decode_lens,
+                                         batch_first=True).data
 
                 # Cache samples on first batch
                 if batch_idx == 0:
+                    # References for bleu score
+                    # Note (BP): Five versions for English and German
+                    references = batch['references']
+                    references = [[references[0][i].split(' '),
+                                   references[1][i].split(' '),
+                                   references[2][i].split(' '),
+                                   references[3][i].split(' '),
+                                   references[4][i].split(' ')] \
+                                  for i in range(batch_size)]
                     non_unk_constant_tokens = [SOS_TOKEN, EOS_TOKEN, PAD_TOKEN]
                     preprocess = \
                         lambda x: remove_tokens(x, non_unk_constant_tokens)
@@ -316,13 +328,8 @@ if __name__ == '__main__':
                             args.max_seq_len)
                     save_caption(beam_captions, None, beam_captions_path,
                                  preprocess=preprocess, is_words=True)
-                    gold_caption_words = \
-                        tensor2text(gold_captions, train_vocab)
-                    gold_caption_words = \
-                        [[preprocess(caption)]
-                         for caption in gold_caption_words]
                     beam_captions = [preprocess(caption) for caption in beam_captions]
-                    bleu_score = corpus_bleu(gold_caption_words, beam_captions)
+                    bleu_score = corpus_bleu(references, beam_captions)
 
                 base_loss = loss(scores, targets)
                 # "Doubly stochastic attention regularization" from paper
@@ -347,8 +354,10 @@ if __name__ == '__main__':
             pbar = tqdm.tqdm(total=len(test_loader))
             for batch_idx, batch in enumerate(test_loader):
                 X_images = batch['image']
-                X_captions = batch['text']
-                caption_lengths = batch['text_len']
+                target_version = batch['target_version'].unique().item()
+                X_captions = batch['captions']
+                caption_lengths = batch['caption_lens']
+                batch_size = X_images.size(0)
                 batch_size = X_images.size(0)
                 X_images = X_images.to(device)
                 X_captions = X_captions.to(device)
@@ -360,10 +369,10 @@ if __name__ == '__main__':
                 targets = captions_sorted[:, 1:]
 
                 scores_copy = scores.clone()
-                scores, _ = \
-                    pack_padded_sequence(scores, decode_lens, batch_first=True)
-                targets, _ = \
-                    pack_padded_sequence(targets, decode_lens, batch_first=True)
+                scores = \
+                    pack_padded_sequence(scores, decode_lens, batch_first=True).data
+                targets = \
+                    pack_padded_sequence(targets, decode_lens, batch_first=True).data
 
                 base_loss = loss(scores, targets)
                 # "Doubly stochastic attention regularization" from paper
@@ -416,7 +425,8 @@ if __name__ == '__main__':
         save_checkpoint(_checkpoint, is_best, folder=args.out_dir)
 
     # Cache losses
-    loss_typs = ['train', 'dev', 'test', 'bleu', 'train_base', 'train_regularizer']
+    loss_typs = ['train', 'dev', 'test', 'bleu', 'train_base',
+                 'train_regularizer']
     data = {
         'epochs': np.concatenate([list(range(args.n_epochs)) \
                                   for _ in

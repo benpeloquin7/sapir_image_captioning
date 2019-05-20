@@ -160,3 +160,22 @@ def remove_eos_sos(sent):
 
     """
     return remove_tokens(sent, [EOS_TOKEN, SOS_TOKEN])
+
+def preprocess_references(references, batch_size):
+    """
+    Parameters
+    ----------
+    references: list[list[tuples[str]]]
+
+    Returns
+    -------
+
+    """
+    references_ = []
+    for ref_list in references:
+        for idx in range(len(ref_list)):
+            ref_list[idx]
+
+
+
+
