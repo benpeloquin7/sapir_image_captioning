@@ -269,20 +269,25 @@ def batch_beam_search_caption_generation(images, encoder, decoder, vocab,
 
     Returns
     -------
-    list[list[str]]
-        Captions list.
+    tuple (captions, alphas, language_hiddens, image_hiddens)
+        Note htat language hiddens is size.
 
     """
     captions = []
     alphas = []
+    language_hiddens = []
+    image_hiddens = []
     for image in torch.split(images, 1, dim=0):
-        caption_idxs, alpha = beam_search_caption_generation(
-            image, encoder, decoder, vocab, device, k, max_length)
+        caption_idxs, alpha, language_hiddens_, image_hiddens_ = \
+            beam_search_caption_generation(image, encoder, decoder, vocab,
+                                           device, k, max_length)
         caption_idxs = torch.LongTensor(caption_idxs).unsqueeze(0)
         caption_words = tensor2text(caption_idxs, vocab)
         captions.extend(caption_words)
         alphas.extend(alpha)
-    return captions, alphas
+        language_hiddens.append(language_hiddens_)
+        image_hiddens.append(image_hiddens_)
+    return captions, alphas, language_hiddens, image_hiddens
 
 
 def beam_search_caption_generation(image, encoder, decoder, vocab,
@@ -308,8 +313,8 @@ def beam_search_caption_generation(image, encoder, decoder, vocab,
 
     Returns
     -------
-    tuple (torch.tensor, torch.tensor)
-        Tuple of character and alphas sequences.
+    tuple (torch.tensor, torch.tensor, torch.tensor)
+        Tuple of character, alpha, hidden embeddings, image encodings.
 
     """
 
@@ -319,6 +324,7 @@ def beam_search_caption_generation(image, encoder, decoder, vocab,
     # Flatten encoding
     # (1, num_pixels, encoder_dim)
     encoder_out = encoder_out.view(1, -1, encoder_dim)
+    image_encoding = encoder_out
     num_pixels = encoder_out.size(1)
     # We'll treat the problem as having a batch size of k
     # (k, num_pixels, encoder_dim)
@@ -329,12 +335,16 @@ def beam_search_caption_generation(image, encoder, decoder, vocab,
     top_k_scores = torch.zeros(k, 1).to(device)
     seqs_alpha = \
         torch.ones(k, 1, encoded_img_size, encoded_img_size).to(device)
+
     complete_seqs = list()
     complete_seqs_alpha = list()
     complete_seqs_scores = list()
+    complete_seqs_hiddens = list()
 
     step = 1
     h, c = decoder.init_hidden_state(encoder_out)
+    hiddens_tracker = \
+        torch.zeros(k, 1, h.shape[1]).to(device)
     while True:
         # (s, embed_dim)
         embeddings = decoder.embedding(k_prev_words).squeeze(1)
@@ -369,6 +379,9 @@ def beam_search_caption_generation(image, encoder, decoder, vocab,
             torch.cat([seqs_alpha[prev_word_inds],
                        alpha[prev_word_inds].unsqueeze(1)], dim=1)
 
+        hiddens_tracker = torch.cat([hiddens_tracker[prev_word_inds],
+                                     h[prev_word_inds].unsqueeze(1)], dim=1)
+
         # Which sequences are incomplete (didn't reach <end>)?
         incomplete_inds = \
             [ind for ind, next_word in enumerate(next_word_inds) \
@@ -381,6 +394,8 @@ def beam_search_caption_generation(image, encoder, decoder, vocab,
             complete_seqs.extend(seqs[complete_inds].tolist())
             complete_seqs_alpha.extend(seqs_alpha[complete_inds].tolist())
             complete_seqs_scores.extend(top_k_scores[complete_inds])
+            complete_seqs_hiddens.extend(hiddens_tracker[complete_inds])
+
         k -= len(complete_inds)  # reduce beam length accordingly
 
         # Proceed with incomplete sequences
@@ -410,5 +425,7 @@ def beam_search_caption_generation(image, encoder, decoder, vocab,
     i = complete_seqs_scores.index(max(complete_seqs_scores))
     seq = complete_seqs[i]
     alphas = complete_seqs_alpha[i]
+    language_hiddens = complete_seqs_hiddens[i]
 
-    return seq, alphas
+
+    return seq, alphas, language_hiddens, image_encoding
