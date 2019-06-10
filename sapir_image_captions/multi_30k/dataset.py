@@ -173,9 +173,13 @@ class CaptionTask2Dataset(Dataset):
             # here to avoid tensor-like behavior from dataloader.
             references.append(' '.join(self.captions_datasets[i][item].caption))
 
-        return {'image': img, 'target_version': self.version,
-                'captions': caption, 'caption_lens': original_caption_len,
-                'references': references}
+        return {'image': img,
+                'target_version': self.version,
+                'captions': caption,
+                'caption_lens': original_caption_len,
+                'references': references,
+                'image_fp': self.image_indices[item]
+                }
 
     def __len__(self):
         return len(self.captions1)
@@ -183,10 +187,17 @@ class CaptionTask2Dataset(Dataset):
 
 if __name__ == '__main__':
     import pickle
+    import torch
 
-    d = CaptionTask2Dataset('/Users/benpeloquin/Data/general/multi30k/',
+
+    dataset = CaptionTask2Dataset('/Users/benpeloquin/Data/general/multi30k/',
                             'train', caption_ext='en')
-    vocab = d.vocab
+    loader = torch.utils.data.DataLoader(dataset, batch_size=32, shuffle=False)
+    vocab = dataset.vocab
+    for batch_idx, batch in enumerate(loader):
+        import pdb; pdb.set_trace();
+
+
 
     with open('test_vocab.pickle', 'wb') as fp:
         pickle.dump(vocab, fp)
