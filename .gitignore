@@ -8,6 +8,4 @@ sapir_image_captions/boy_and_frog/__pycache__/
 
 # Meta
 .data_login
-
-# notebooks
-notebooks/
+notebooks/.ipynb_checkpoints/
